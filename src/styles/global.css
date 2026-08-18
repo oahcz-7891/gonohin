@@ -1,0 +1,688 @@
+/* 全局样式：变量、书架、阅读器壳、通用控件 */
+
+:root {
+  color-scheme: light;
+  --bg: #f2e8d5; /* 羊皮纸背景 */
+  --bg-elev: #fbf3e3; /* 卡片 / 顶栏 */
+  --paper: #f7eeda; /* 阅读纸面 */
+  --fg: #4a3826;
+  --fg-muted: #8c795c;
+  --border: #ddcba9;
+  --primary: #9a6b3f;
+  --primary-hover: #7f5530;
+  --danger: #b3493a;
+  --ok: #2e7d32;
+  --radius: 12px;
+  --shadow: 0 2px 10px rgba(90, 65, 35, 0.1);
+  --reading-font: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', 'Songti SC', serif;
+  /* 翻页热区宽度 = 文字左右留白（热区只落在留白上，不盖住正文） */
+  --page-zone: clamp(52px, 15%, 96px);
+}
+
+/* 深色模式：暖黑羊皮纸 */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1c1712;
+  --bg-elev: #2a231b;
+  --paper: #241d16;
+  --fg: #eadbc0;
+  --fg-muted: #a89478;
+  --border: rgba(255, 255, 255, 0.1);
+  --primary: #c89b6a;
+  --primary-hover: #d9ae7c;
+  --danger: #ff7a66;
+  --ok: #6fcf97;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  height: 100%;
+}
+
+/* ---------- 通用按钮 ---------- */
+.btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  color: #fff;
+}
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+.topbar-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar-hint {
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+/* ---------- 通知条 ---------- */
+.notice {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  z-index: 100;
+  animation: fade-in 0.2s ease;
+}
+.notice-error {
+  background: rgba(179, 73, 58, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(179, 73, 58, 0.28);
+}
+.notice-info {
+  background: rgba(43, 91, 140, 0.1);
+  color: #2b5b8c;
+  border: 1px solid rgba(43, 91, 140, 0.24);
+}
+:root[data-theme='dark'] .notice-info {
+  color: #7ab3e8;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ---------- 书架 ---------- */
+.shelf {
+  min-height: 100%;
+}
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120px 24px;
+  gap: 6px;
+}
+/* 空态图标：浅灰正圆形底 + 细线线性图标（Cash App 风格） */
+.empty-icon {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #ece9e3;
+  color: #9a9389;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.empty-icon svg {
+  width: 38px;
+  height: 38px;
+}
+.empty-state p {
+  margin: 0;
+  color: var(--fg-muted);
+}
+.empty-state .empty-hint {
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px;
+  padding: 24px;
+}
+
+/* ---------- 书架卡片 ---------- */
+.book-card {
+  cursor: pointer;
+  user-select: none;
+}
+.book-cover {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+.book-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--fg-muted);
+  background: linear-gradient(160deg, #efe0c4, #e2cba6);
+}
+:root[data-theme='dark'] .cover-fallback {
+  color: #d9c8a8;
+  background: linear-gradient(160deg, #3a3127, #2a231b);
+}
+.book-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  /* 常显（半透明），悬停变清晰——触屏设备没有 hover，隐藏式交互不可用 */
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+.book-card:hover .book-delete {
+  opacity: 1;
+}
+@media (hover: none) {
+  .book-delete {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+    opacity: 0.85;
+  }
+}
+.book-title {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.book-meta {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.book-progress {
+  margin-top: 6px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.book-progress-bar {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+}
+
+/* ---------- 阅读器壳 ---------- */
+.reader-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.reader-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+.reader-title {
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reader-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 渲染器统一容器 */
+.renderer-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  font-family: var(--reading-font);
+  background: var(--paper);
+}
+.renderer-page {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+/* 翻页按钮 */
+.page-nav {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--page-zone);
+  min-width: var(--page-zone);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  font-size: 0; /* 隐藏箭头文字，仅保留点击热区（触屏/划词模式下靠两侧点击翻页） */
+  color: var(--fg-muted);
+  z-index: 5;
+}
+/* 只有指针碰到箭头本身时才显示；触屏则按下时显示、松开后隐藏 */
+.page-nav:focus-visible {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .page-nav:hover {
+    opacity: 1;
+  }
+}
+@media (hover: none) {
+  .page-nav:active {
+    opacity: 1;
+  }
+}
+.page-nav-prev {
+  left: 0;
+}
+.page-nav-next {
+  right: 0;
+}
+/* 划词模式下收窄翻页热区，只占边缘留白，避免挡住最左/最右的文字 */
+.page-nav-select-mode {
+  width: 24px;
+  min-width: 24px;
+  opacity: 0.5;
+}
+
+/* 底部状态栏 */
+.reader-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+/* 手机端：状态栏整体上移，并适配 iPhone 底部安全区（Home 条） */
+@media (max-width: 640px) {
+  .reader-statusbar {
+    padding-top: 12px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+/* 进度条：可拖动跳页的 range 滑块（填充色由 JSX 内联渐变控制） */
+.reader-statusbar .progress-track {
+  flex: 1;
+  height: 22px; /* 扩大点击/触摸热区 */
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.reader-statusbar .progress-track::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: transparent; /* 透出 input 内联的渐变（填充色+轨道色） */
+}
+.reader-statusbar .progress-track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1px;
+  height: 22px;
+  opacity: 0; /* 隐藏圆点，保留可拖动热区 */
+}
+.reader-statusbar .progress-track::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: transparent;
+}
+.reader-statusbar .progress-track::-moz-range-thumb {
+  width: 1px;
+  height: 22px;
+  opacity: 0; /* 隐藏圆点，保留可拖动热区 */
+}
+.font-size-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.font-size-controls button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.font-size-controls button:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* 加载 / 错误占位 */
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 10px;
+  color: var(--fg-muted);
+}
+.placeholder .error-text {
+  max-width: 480px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ---------- TXT 渲染器（CSS columns 分页） ---------- */
+.txt-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 36px var(--page-zone);
+  scrollbar-width: none; /* 隐藏滚动条，靠翻页按钮移动 */
+}
+.txt-scroll::-webkit-scrollbar {
+  display: none;
+}
+.txt-cols {
+  height: 100%;
+  column-fill: auto;
+  white-space: pre-wrap; /* 保留原换行 */
+  word-break: break-word;
+  line-height: 1.9;
+  color: var(--fg);
+}
+.txt-page-hint {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+
+/* ---------- MOBI 渲染器 ---------- */
+.mobi-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: var(--paper);
+}
+
+/* ---------- PDF 渲染器 ---------- */
+.pdf-view {
+  background: #525659; /* 深色底，PDF 页面浮在上面 */
+}
+.pdf-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 24px 0;
+}
+.pdf-wrap .textLayer {
+  z-index: 2;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.pdf-wrap .textLayer span {
+  cursor: text;
+}
+.pdf-hint {
+  color: #ccc;
+  font-size: 13px;
+  font-family: system-ui, sans-serif;
+}
+
+/* ---------- 划词翻译弹窗 ---------- */
+.trans-popup {
+  position: fixed;
+  z-index: 200;
+  max-width: 420px;
+  max-height: calc(100vh - 16px);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: fade-in 0.15s ease;
+}
+.trans-source {
+  font-size: 13px;
+  color: var(--fg);
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.6;
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.trans-result {
+  font-size: 15px;
+  line-height: 1.7;
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.trans-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.trans-actions > div {
+  display: flex;
+  gap: 10px;
+}
+.trans-actions .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.trans-error {
+  font-size: 13px;
+  color: var(--danger);
+  line-height: 1.6;
+}
+.trans-loading {
+  animation: blink 0.8s infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+.trans-hint {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+/* 触屏划词：屏蔽系统菜单，自绘“复制 / 翻译”操作条 */
+.sel-actions {
+  position: fixed;
+  z-index: 210;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  animation: fade-in 0.15s ease;
+}
+.sel-actions button {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+}
+.sel-actions button:active {
+  opacity: 0.85;
+}
+.sel-actions .sel-actions-close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+/* ---------- 设置页 ---------- */
+.settings-page {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-group label {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.settings-group input,
+.settings-group select {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  background: var(--bg-elev);
+  color: var(--fg);
+}
+.settings-group input:focus,
+.settings-group select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.settings-hint {
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.6;
+}
+.settings-test-result {
+  font-size: 13px;
+}
+.settings-test-result.ok {
+  color: var(--ok);
+}
+.settings-test-result.fail {
+  color: var(--danger);
+}
