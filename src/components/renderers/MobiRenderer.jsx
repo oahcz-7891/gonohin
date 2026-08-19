@@ -238,13 +238,36 @@ const SELECT_SCRIPT = `
     updateHighlight(range)
   }
 
+  // 从选区向上找最近块级元素（段落），取整段文本作为翻译上下文
+  function contextFromRange(range) {
+    try {
+      var node = range.startContainer
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+      var blockRE = /^(P|DIV|LI|TD|BLOCKQUOTE|H[1-6]|SECTION|ARTICLE|DD|DT|TH|FIGCAPTION)$/
+      var block = node
+      while (block && block !== document.body) {
+        if (blockRE.test(block.tagName)) break
+        block = block.parentElement
+      }
+      var text = (block && block.textContent ? block.textContent : '').replace(/\\s+/g, ' ').trim()
+      if (!text || text.length <= 400) return text
+      // 整段过长（如整本书一个 DIV）：以选区为中心截取 ±200 字
+      var selText = range.toString().replace(/\\s+/g, ' ').trim()
+      var idx = text.indexOf(selText)
+      var center = idx >= 0 ? idx : Math.floor(text.length / 2)
+      return text.slice(Math.max(0, center - 200), Math.min(text.length, center + 200))
+    } catch (err) {
+      return ''
+    }
+  }
+
   function report(range) {
     if (!range || range.collapsed) return
     var text = range.toString().replace(/\\s+/g, ' ').trim()
     if (!text) return
     var rect = range.getBoundingClientRect()
     if (!rect || (!rect.width && !rect.height)) return
-    window.parent.postMessage({ type: 'mobi-selection', text: text, x: rect.left, y: rect.bottom }, '*')
+    window.parent.postMessage({ type: 'mobi-selection', text: text, context: contextFromRange(range), x: rect.left, y: rect.bottom }, '*')
   }
 
   var startTok = null
@@ -538,6 +561,7 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
       if (!frameRect) return
       onSelection?.({
         text: e.data.text,
+        context: e.data.context || '',
         x: e.data.x + frameRect.left,
         y: e.data.y + frameRect.top,
         fromTouch: true,

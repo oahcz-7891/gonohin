@@ -7,6 +7,28 @@ import ePub from 'epubjs'
 import { getSettings } from '../../lib/storage'
 import { resolveTheme } from '../../lib/theme'
 
+// EPUB 内容页在 iframe 里，用其 document 取上下文（注意 selectNode 用 contentWindow 的 Range）
+function extractEpubContext(range, doc) {
+  try {
+    let node = range.startContainer
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+    const blockRE = /^(P|DIV|LI|TD|BLOCKQUOTE|H[1-6]|SECTION|ARTICLE|DD|DT|TH|FIGCAPTION)$/
+    let block = node
+    while (block && block !== doc.body) {
+      if (blockRE.test(block.tagName)) break
+      block = block.parentElement
+    }
+    const text = (block?.textContent || '').replace(/\s+/g, ' ').trim()
+    if (!text || text.length <= 400) return text
+    const selText = range.toString().replace(/\s+/g, ' ').trim()
+    const idx = text.indexOf(selText)
+    const center = idx >= 0 ? idx : Math.floor(text.length / 2)
+    return text.slice(Math.max(0, center - 200), Math.min(text.length, center + 200))
+  } catch {
+    return ''
+  }
+}
+
 export default function EpubRenderer({ ref, book, progress, fontSize, onProgress, onSelection }) {
   const containerRef = useRef(null)
   const renditionRef = useRef(null)
@@ -59,12 +81,19 @@ export default function EpubRenderer({ ref, book, progress, fontSize, onProgress
 
         // 划词翻译：epubjs 检测到 iframe 内选区时触发
         rendition.on('selected', (cfiRange, contents) => {
+          const doc = contents.document
           const sel = contents.window.getSelection()
           const text = sel.toString().trim()
-          if (!text) return
-          const rect = sel.getRangeAt(0).getBoundingClientRect()
+          if (!text || !sel.rangeCount) return
+          const range = sel.getRangeAt(0)
+          const rect = range.getBoundingClientRect()
           const iframeRect = rendition.getContents()[0].iframe.getBoundingClientRect()
-          onSelection({ text, x: rect.left + iframeRect.left, y: rect.bottom + iframeRect.top })
+          onSelection({
+            text,
+            context: extractEpubContext(range, doc),
+            x: rect.left + iframeRect.left,
+            y: rect.bottom + iframeRect.top,
+          })
         })
 
         // 后台生成全书定位索引（relocated 里的 percentage 依赖它，越精确越慢，500 为折中）

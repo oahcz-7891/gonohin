@@ -8,6 +8,7 @@ import PdfRenderer from './renderers/PdfRenderer'
 import TranslationPopup from './TranslationPopup'
 import { FORMATS } from '../lib/constants'
 import { getProgress, getSettings } from '../lib/storage'
+import { MAX_DEEP_LEN } from '../lib/translate'
 import { useAutoSave } from '../hooks/useAutoSave'
 import { useSelection } from '../hooks/useSelection'
 import { resolveTheme } from '../lib/theme'
@@ -33,8 +34,9 @@ export default function Reader({ book, onBack }) {
   })
   const locRef = useRef(initialProgress ?? {})
   const [status, setStatus] = useState(null) // { pageIndex, totalPages }
-  const [selection, setSelection] = useState(null) // { text, x, y } → 划词翻译弹窗
+  const [selection, setSelection] = useState(null) // { text, context, x, y } → 划词翻译弹窗
   const [translateOpen, setTranslateOpen] = useState(false) // 触屏：点“翻译（AI）”后再打开弹窗
+  const [deepMode, setDeepMode] = useState(false) // 触屏：点“深度翻译”以 agent loop 打开
   const [copied, setCopied] = useState(false) // 复制成功后的短暂反馈
   const [dragPct, setDragPct] = useState(null) // 进度条拖动中的临时值（0-1000），松开后跳页
   const apiRef = useRef(null)
@@ -64,6 +66,7 @@ export default function Reader({ book, onBack }) {
     }
     setSelection(sel)
     setTranslateOpen(false) // 新选区出现时回到“复制 / 翻译”操作条
+    setDeepMode(false)
   }, [])
 
   // 统一划词监听：document（TXT/PDF）+ iframe（MOBI），EPUB 走 epubjs 内置事件
@@ -210,12 +213,26 @@ export default function Reader({ book, onBack }) {
         <div
           className="sel-actions"
           style={{
-            left: Math.max(8, Math.min(selection.x, window.innerWidth - 190)),
+            left: Math.max(8, Math.min(selection.x, window.innerWidth - 260)),
             top: Math.max(8, Math.min(selection.y + 10, window.innerHeight - 56)),
           }}
         >
           <button onClick={copySelection}>{copied ? '已复制' : '复制'}</button>
           <button onClick={() => setTranslateOpen(true)}>翻译</button>
+          <button
+            disabled={selection.text.length > MAX_DEEP_LEN}
+            title={
+              selection.text.length > MAX_DEEP_LEN
+                ? `文本超过 ${MAX_DEEP_LEN} 字，无法深度翻译，请用「翻译」`
+                : undefined
+            }
+            onClick={() => {
+              setDeepMode(true)
+              setTranslateOpen(true)
+            }}
+          >
+            深度翻译
+          </button>
           <button
             className="sel-actions-close"
             aria-label="关闭"
@@ -232,6 +249,7 @@ export default function Reader({ book, onBack }) {
       {selection && IS_TOUCH && translateOpen && (
         <TranslationPopup
           {...selection}
+          mode={deepMode ? 'deep' : 'normal'}
           onClose={() => {
             setSelection(null)
             setTranslateOpen(false)

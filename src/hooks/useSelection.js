@@ -6,6 +6,29 @@
 
 import { useEffect, useRef } from 'react'
 
+// 从选区向上找最近的块级元素（段落），取整段文本作为翻译上下文
+function extractContext(range) {
+  try {
+    let node = range.startContainer
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+    const blockRE = /^(P|DIV|LI|TD|BLOCKQUOTE|H[1-6]|SECTION|ARTICLE|DD|DT|TH|FIGCAPTION)$/
+    let block = node
+    while (block && block !== document.body) {
+      if (blockRE.test(block.tagName)) break
+      block = block.parentElement
+    }
+    const text = (block?.textContent || '').replace(/\s+/g, ' ').trim()
+    if (!text || text.length <= 400) return text
+    // 整段过长（如整本书一个 DIV）：以选区为中心截取 ±200 字
+    const selText = range.toString().trim()
+    const idx = text.indexOf(selText)
+    const center = idx >= 0 ? idx : Math.floor(text.length / 2)
+    return text.slice(Math.max(0, center - 200), Math.min(text.length, center + 200))
+  } catch {
+    return ''
+  }
+}
+
 export function useSelection(onSelect) {
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
@@ -27,7 +50,8 @@ export function useSelection(onSelect) {
         if (!text || sel.rangeCount === 0) return false
         const rect = sel.getRangeAt(0).getBoundingClientRect()
         if (!rect || (rect.width === 0 && rect.height === 0)) return false
-        onSelectRef.current({ text, x: rect.left + offsetX, y: rect.bottom + offsetY, fromTouch })
+        const context = extractContext(sel.getRangeAt(0))
+        onSelectRef.current({ text, context, x: rect.left + offsetX, y: rect.bottom + offsetY, fromTouch })
         return true
       }
 

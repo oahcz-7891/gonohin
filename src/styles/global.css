@@ -585,8 +585,8 @@ body {
   gap: 10px;
 }
 .trans-actions .btn {
-  padding: 4px 10px;
-  font-size: 12px;
+  padding: 7px 14px;
+  font-size: 14px;
 }
 .trans-error {
   font-size: 13px;
@@ -595,6 +595,16 @@ body {
 }
 .trans-loading {
   animation: blink 0.8s infinite;
+}
+.trans-stage {
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 @keyframes blink {
   50% {
@@ -632,6 +642,10 @@ body {
 }
 .sel-actions button:active {
   opacity: 0.85;
+}
+.sel-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .sel-actions .sel-actions-close {
   width: 24px;

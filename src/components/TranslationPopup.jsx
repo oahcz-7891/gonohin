@@ -1,35 +1,59 @@
 // 划词翻译弹窗：流式显示译文，支持重译 / 复制 / 关闭
+// 两种模式：
+//   normal —— 普通翻译（上下文注入，单次流式）
+//   deep   —— 深度翻译（agent loop：初译 → 验证 → 修正 → 再验证），弹窗内可随时切换
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { translateStream } from '../lib/translate'
+import { translateStream, translateDeep, MAX_DEEP_LEN } from '../lib/translate'
 
 const MAX_SOURCE_LEN = 2000
 
-export default function TranslationPopup({ text, x, y, onClose }) {
+const STAGE_LABEL = {
+  translating: '初译中…',
+  verifying: '文章内验证…',
+  fixing: '按审校意见修正…',
+}
+
+export default function TranslationPopup({ text, context = '', x, y, mode: initialMode = 'normal', onClose }) {
   const popupRef = useRef(null)
+  // 初始模式来自调用方（触屏操作条的「翻译/深度翻译」区分），弹窗内可自由切换
+  const [mode, setMode] = useState(initialMode) // 'normal' | 'deep'
+  const [stage, setStage] = useState(null) // deep 模式阶段
   const [result, setResult] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
   const [pos, setPos] = useState({ left: 8, top: 8 })
   const runIdRef = useRef(0)
   const source = text.length > MAX_SOURCE_LEN ? text.slice(0, MAX_SOURCE_LEN) + '…' : text
+  // 深度模式有长度上限：超长文本禁用切换
+  const deepDisabled = text.length > MAX_DEEP_LEN
 
   const run = async () => {
     const runId = ++runIdRef.current
     setLoading(true)
     setError(null)
     setResult('')
+    setStage(null)
     try {
-      const stream = await translateStream(source)
-      for await (const delta of stream) {
-        if (runIdRef.current !== runId) return // 已被重译/关闭打断
-        setResult((prev) => prev + delta)
+      if (mode === 'deep') {
+        const stream = translateDeep(source, context, undefined, setStage)
+        for await (const delta of stream) {
+          if (runIdRef.current !== runId) return // 已被重译/切模式/关闭打断
+          setResult((prev) => prev + delta)
+        }
+      } else {
+        const stream = await translateStream(source, context)
+        for await (const delta of stream) {
+          if (runIdRef.current !== runId) return // 已被重译/关闭打断
+          setResult((prev) => prev + delta)
+        }
       }
       setLoading(false)
     } catch (e) {
       if (runIdRef.current === runId) {
         setError(e.message)
         setLoading(false)
+        setStage(null)
       }
     }
   }
@@ -42,7 +66,7 @@ export default function TranslationPopup({ text, x, y, onClose }) {
       runIdRef.current++
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text])
+  }, [text, mode])
 
   const copy = async () => {
     try {
@@ -61,7 +85,7 @@ export default function TranslationPopup({ text, x, y, onClose }) {
     const left = Math.min(Math.max(8, x), Math.max(8, window.innerWidth - width - 8))
     const maxTop = Math.max(8, window.innerHeight - height - 8)
     setPos({ left, top: Math.min(y + 12, maxTop) })
-  }, [x, y, result, error, loading])
+  }, [x, y, result, error, loading, mode])
 
   return (
     <div className="trans-popup" ref={popupRef} style={pos}>
@@ -75,12 +99,25 @@ export default function TranslationPopup({ text, x, y, onClose }) {
       ) : (
         <div className="trans-result">
           {result}
-          {loading && <span className="trans-loading">▍</span>}
+          {loading &&
+            (mode === 'deep' && stage ? (
+              <span className="trans-stage">{STAGE_LABEL[stage]}</span>
+            ) : (
+              <span className="trans-loading">▍</span>
+            ))}
         </div>
       )}
 
       <div className="trans-actions">
         <div>
+          <button
+            className="btn"
+            onClick={() => setMode(mode === 'deep' ? 'normal' : 'deep')}
+            disabled={mode === 'normal' && deepDisabled}
+            title={deepDisabled && mode === 'normal' ? `文本超过 ${MAX_DEEP_LEN} 字，无法深度翻译` : undefined}
+          >
+            {mode === 'deep' ? '普通翻译' : '深度翻译'}
+          </button>
           <button className="btn" onClick={run} disabled={loading}>
             重新翻译
           </button>
