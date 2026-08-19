@@ -3,12 +3,16 @@
 // 翻页 = iframe 内横向滚动。这样 KF8 书即使只有 3 个 spine 也能正常显示几十上百页。
 import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { initMobiFixed } from '../../lib/mobi'
+import { tokenizeHtml } from '../../lib/tokenize'
 
 const READING_FONT =
   "'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', 'Songti SC', serif"
 const GAP = 40 // column-gap 固定 40px，与 step 计算一致
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v))
+
+// 分词结果按正文 HTML 缓存：同一个 combined.html 只分词一次（词典首载后 tokenize 很快）
+const tokCache = new Map()
 
 /** 从章节 HTML 中提取 body 内部内容；无 body 的碎片（KF8 章节）则原样使用 */
 function extractBody(html) {
@@ -18,6 +22,8 @@ function extractBody(html) {
 
 // 划词逻辑直接跑在 iframe 内部：iOS WebKit 对“父页面给 iframe 内容挂 touch 监听”支持很差，
 // 只有 iframe 自己的脚本才可靠。iframe 内选中后通过 postMessage 把 {text,x,y} 交给父页面。
+// 分词优先命中父页面预生成的 <span class="tok">（kuromoji 形态素）：单击选中单个词，拖动选中词区间；
+// 未命中（纯英文/无分词）时回退到 Intl.Segmenter 词级选中。鼠标/触摸共用同一套逻辑。
 const SELECT_SCRIPT = `
 <script>
 (function () {
@@ -98,9 +104,61 @@ const SELECT_SCRIPT = `
     return range
   }
 
+  // —— kuromoji 分词 span 命中 ——
+  // 点坐标 → 最近的 .tok 元素：优先 elementFromPoint（点落在 .tok 文本上），
+  // 否则用 caretFromPoint 找所在文本节点再向上找 .tok（兼容落在词边界/留白处）
+  function tokFromPoint(x, y) {
+    var el = document.elementFromPoint(x, y)
+    if (el && el.closest) {
+      var tok = el.closest('.tok')
+      if (tok) return tok
+    }
+    var caret = caretFromPoint(x, y)
+    if (caret && caret.node) {
+      var n = caret.node.nodeType === Node.TEXT_NODE ? caret.node.parentElement : caret.node
+      if (n && n.closest) {
+        var tok2 = n.closest('.tok')
+        if (tok2) return tok2
+      }
+    }
+    return null
+  }
+
+  function singleTokRange(tok) {
+    var range = document.createRange()
+    try {
+      range.selectNodeContents(tok)
+    } catch (err) {
+      return null
+    }
+    return range
+  }
+
+  // 两个 .tok 之间的区间：先按文档顺序排好，起点取 first 内容开头、终点取 second 内容结尾
+  function rangeFromToks(a, b) {
+    if (!a || !b) return null
+    var first = a
+    var second = b
+    if (a !== b) {
+      var pos = a.compareDocumentPosition(b)
+      if (pos & Node.DOCUMENT_POSITION_PRECEDING || pos & Node.DOCUMENT_POSITION_CONTAINS) {
+        first = b
+        second = a
+      }
+    }
+    var range = document.createRange()
+    try {
+      range.selectNodeContents(first)
+      range.setEndAfter(second)
+    } catch (err) {
+      return null
+    }
+    return range
+  }
+
   var PHRASE_MAX = 12
   var STOP_RE = /[\\s、。，．,.;:!?！？…—―～「」『』（）()【】《》〈〉"'“”‘’\\n\\r]/
-  // 长按 → 选中光标所在的“词”：Intl.Segmenter 按 Unicode 词边界分词（中英文均支持），
+  // 回退选词（无 .tok 命中时）：Intl.Segmenter 按 Unicode 词边界分词（中英文均支持），
   // 光标落在标点/空白上时向两侧找最近的一个词；旧浏览器无 Segmenter 时回退为标点分隔的短语
   var SEGMENTER = null
   try { SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'word' }) } catch (err) {}
@@ -181,24 +239,21 @@ const SELECT_SCRIPT = `
     window.parent.postMessage({ type: 'mobi-selection', text: text, x: rect.left, y: rect.bottom }, '*')
   }
 
-  var start = null
+  var startTok = null
+  var caretStart = null
   var lastRange = null
   var lastPoint = null
   var moved = false
-  var startTime = 0
   // iOS 优化：touchmove 只记录坐标，统一在 rAF 里更新自绘高亮（轻量合帧）；
   // 拖动中不碰原生 selection（iOS 上高频操作开销大、会触发 selectionchange 风暴），
   // 松手时再一次性套用原生选区
   var pendingPoint = null
   var rafId = 0
 
-  function onTouchStart(e) {
-    e.preventDefault()
-    var t = e.touches && e.touches[0]
-    if (!t) return
-    start = caretFromPoint(t.clientX, t.clientY)
-    lastPoint = { x: t.clientX, y: t.clientY }
-    startTime = Date.now()
+  function begin(x, y) {
+    startTok = tokFromPoint(x, y)
+    caretStart = caretFromPoint(x, y)
+    lastPoint = { x: x, y: y }
     moved = false
     lastRange = null
     pendingPoint = null
@@ -207,56 +262,94 @@ const SELECT_SCRIPT = `
       rafId = 0
     }
     clearHighlight()
+    if (startTok) {
+      // 按下即预高亮这一个词，拖动时才切换成区间
+      lastRange = singleTokRange(startTok)
+      if (lastRange && !lastRange.collapsed) updateHighlight(lastRange)
+    }
   }
 
-  // rAF 合帧：一帧最多更新一次高亮，重活不塞进高频 touchmove
+  // rAF 合帧：一帧最多更新一次高亮，重活不塞进高频 move 事件
   function step() {
     rafId = 0
-    if (!start || !pendingPoint) return
-    var cur = caretFromPoint(pendingPoint.x, pendingPoint.y)
+    if (!pendingPoint) return
+    var p = pendingPoint
     pendingPoint = null
-    var range = makeRange(start, cur)
+    var range = null
+    if (startTok) {
+      var curTok = tokFromPoint(p.x, p.y)
+      if (curTok) range = rangeFromToks(startTok, curTok)
+    } else if (caretStart) {
+      var cur = caretFromPoint(p.x, p.y)
+      range = makeRange(caretStart, cur)
+    }
     if (!range) return
     lastRange = range
     updateHighlight(range)
   }
 
-  function onTouchMove(e) {
-    e.preventDefault()
-    if (!start) return
-    var t = e.touches && e.touches[0]
-    if (!t || !lastPoint) return
-    if (Math.abs(t.clientX - lastPoint.x) + Math.abs(t.clientY - lastPoint.y) > 6) moved = true
-    lastPoint = { x: t.clientX, y: t.clientY }
+  function move(x, y) {
+    if (!lastPoint) return
+    if (Math.abs(x - lastPoint.x) + Math.abs(y - lastPoint.y) > 6) moved = true
+    lastPoint = { x: x, y: y }
     if (!moved) return
-    pendingPoint = { x: t.clientX, y: t.clientY }
+    pendingPoint = { x: x, y: y }
     if (!rafId) rafId = requestAnimationFrame(step)
   }
-  function onTouchEnd() {
+
+  function end() {
     if (rafId) {
       cancelAnimationFrame(rafId)
       rafId = 0
     }
     pendingPoint = null
-    if (moved && lastRange && !lastRange.collapsed) {
-      applyRange(lastRange)
-      report(lastRange)
-    } else if (!moved && start && Date.now() - startTime >= 450) {
-      var range = wordFromCaret(start)
-      if (range && !range.collapsed) {
-        applyRange(range)
-        report(range)
-      }
+    var range = null
+    if (startTok) {
+      // 有 kuromoji 词：单击 = 整词，拖动 = 词区间
+      range = moved ? lastRange : singleTokRange(startTok)
+    } else if (moved) {
+      range = lastRange
+    } else if (caretStart) {
+      // 未命中 .tok（纯英文/数字等）：单击也按 Intl.Segmenter 选一个词
+      range = wordFromCaret(caretStart)
     }
-    start = null
+    if (range && !range.collapsed) {
+      applyRange(range)
+      report(range)
+    }
+    startTok = null
+    caretStart = null
     lastRange = null
     lastPoint = null
   }
 
-  document.addEventListener('touchstart', onTouchStart, { passive: false })
-  document.addEventListener('touchmove', onTouchMove, { passive: false })
-  document.addEventListener('touchend', onTouchEnd, { passive: true })
-  document.addEventListener('touchcancel', onTouchEnd, { passive: true })
+  function onDown(e) {
+    e.preventDefault()
+    var t = e.touches && e.touches[0]
+    begin(t ? t.clientX : e.clientX, t ? t.clientY : e.clientY)
+  }
+  function onMove(e) {
+    var t = e.touches && e.touches[0]
+    move(t ? t.clientX : e.clientX, t ? t.clientY : e.clientY)
+  }
+  function onUp(e) {
+    e.preventDefault()
+    end()
+  }
+
+  document.addEventListener('touchstart', onDown, { passive: false })
+  document.addEventListener('touchmove', onMove, { passive: false })
+  document.addEventListener('touchend', onUp, { passive: false })
+  document.addEventListener('touchcancel', onUp, { passive: false })
+  document.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return
+    onDown(e)
+  })
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', function (e) {
+    if (e.button !== 0) return
+    onUp(e)
+  })
   scroller.addEventListener('scroll', clearHighlight, { passive: true })
 })()
 </script>`
@@ -272,6 +365,9 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
   const [colWidth, setColWidth] = useState(0)
   const [padX, setPadX] = useState(28) // 左右留白（跟随 CSS --page-zone），用于 iframe 内列 padding
   const [pageInfo, setPageInfo] = useState({ pageIndex: 0, totalPages: 0 })
+
+  const [tokHtml, setTokHtml] = useState(null)
+  const [tokPending, setTokPending] = useState(false)
 
   const pageIndexRef = useRef(progress?.pageIndex ?? 0)
   const didRestoreRef = useRef(false)
@@ -330,6 +426,41 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
     if (mobi && spine.length && !combined) setError('未解析到可显示的章节内容')
   }, [mobi, spine, combined])
 
+  // 4. 划词模式下把合并正文送 Worker 做 kuromoji 分词，包成 <span class="tok">
+  //    分词是异步的：先渲染原文，分词完成后热替换（不阻塞阅读，字典首载约 17MB）。
+  //    缓存按 HTML 字符串复用，避免开关划词模式时重复分词。
+  useEffect(() => {
+    if (!selectMode || !combined) {
+      setTokHtml(null)
+      setTokPending(false)
+      return
+    }
+    const cached = tokCache.get(combined.html)
+    if (cached) {
+      setTokHtml(cached)
+      setTokPending(false)
+      return
+    }
+    let alive = true
+    setTokPending(true)
+    ;(async () => {
+      try {
+        const html = await tokenizeHtml(combined.html)
+        if (!alive) return
+        tokCache.set(combined.html, html)
+        setTokHtml(html)
+      } catch {
+        // 分词失败（词典下载失败等）则维持原文，SELECT_SCRIPT 会走 Intl.Segmenter 回退
+        if (alive) setTokHtml(null)
+      } finally {
+        if (alive) setTokPending(false)
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [selectMode, combined])
+
   // 3. 容器宽度 -> 列宽（一屏一列）
   useEffect(() => {
     const el = containerRef.current
@@ -353,6 +484,7 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
     const paperBg = dark ? '#241d16' : '#f7eeda'
     const paperFg = dark ? '#eadbc0' : '#4a3826'
     const cssLinks = combined.css.map((href) => `<link rel="stylesheet" href="${href}">`).join('\n')
+    const bodyHtml = selectMode && tokHtml ? tokHtml : combined.html
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${cssLinks}
 <style>
   html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}
@@ -366,10 +498,12 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
     font-family:${READING_FONT};font-size:${fontSize}px;line-height:1.9;
     color:${paperFg};word-break:break-word}
   .mobi-cols img{max-width:100%;height:auto}
+  .tok{white-space:pre-wrap}
+  .tok:hover{background:rgba(154,107,63,.12);border-radius:3px}
   .sel-layer{position:absolute;inset:0;pointer-events:none;z-index:3}
   .sel-box{position:absolute;background:rgba(154,107,63,.25);border-radius:2px}
-</style></head><body><div class="mobi-scroll"><div class="mobi-cols">${combined.html}</div></div>${selectMode ? SELECT_SCRIPT : ''}</body></html>`
-  }, [combined, colWidth, padX, fontSize, theme, selectMode])
+</style></head><body><div class="mobi-scroll"><div class="mobi-cols">${bodyHtml}</div></div>${selectMode ? SELECT_SCRIPT : ''}</body></html>`
+  }, [combined, colWidth, padX, fontSize, theme, selectMode, tokHtml])
 
   // srcDoc 重建（改字号/窗口大小）后，iframe 重新加载时要回到当前页
   useLayoutEffect(() => {
@@ -526,6 +660,7 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
           {pageInfo.pageIndex + 1} / {pageInfo.totalPages}
         </div>
       )}
+      {selectMode && tokPending && !tokHtml && <div className="txt-page-hint tok-pending">划词词典加载中…</div>}
     </div>
   )
 }

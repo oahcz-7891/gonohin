@@ -491,6 +491,9 @@ body {
   color: var(--fg-muted);
   pointer-events: none;
 }
+.txt-page-hint.tok-pending {
+  bottom: 30px;
+}
 
 /* ---------- MOBI 渲染器 ---------- */
 .mobi-frame {
