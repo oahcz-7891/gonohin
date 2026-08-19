@@ -22,7 +22,9 @@ function extractBody(html) {
 
 // 划词逻辑直接跑在 iframe 内部：iOS WebKit 对“父页面给 iframe 内容挂 touch 监听”支持很差，
 // 只有 iframe 自己的脚本才可靠。iframe 内选中后通过 postMessage 把 {text,x,y} 交给父页面。
-// 分词优先命中父页面预生成的 <span class="tok">（kuromoji 形态素）：单击选中单个词，拖动选中词区间；
+// 分词优先命中父页面预生成的 <span class="tok">（kuromoji 形态素）：单击选中单个词；
+// 拖动时走逐字精确区间（caretRangeFromPoint），松手后两端才吸附到整词边界，
+// 避免 iOS 上“一拖就是一长串 / 稍往下就跨行整段选中”。
 // 未命中（纯英文/无分词）时回退到 Intl.Segmenter 词级选中。鼠标/触摸共用同一套逻辑。
 const SELECT_SCRIPT = `
 <script>
@@ -80,6 +82,15 @@ const SELECT_SCRIPT = `
     return null
   }
 
+  function cloneRange(range) {
+    if (!range) return null
+    try {
+      return range.cloneRange()
+    } catch (err) {
+      return null
+    }
+  }
+
   function makeRange(a, b) {
     if (!a || !b || !a.node || !b.node) return null
     var first = a
@@ -134,26 +145,23 @@ const SELECT_SCRIPT = `
     return range
   }
 
-  // 两个 .tok 之间的区间：先按文档顺序排好，起点取 first 内容开头、终点取 second 内容结尾
-  function rangeFromToks(a, b) {
-    if (!a || !b) return null
-    var first = a
-    var second = b
-    if (a !== b) {
-      var pos = a.compareDocumentPosition(b)
-      if (pos & Node.DOCUMENT_POSITION_PRECEDING || pos & Node.DOCUMENT_POSITION_CONTAINS) {
-        first = b
-        second = a
-      }
+  // 松手时把逐字区间的两端向外吸附到最近的整词边界：
+  // 拖动中保持逐字精确（不跨行跳整段），最后只把首尾各自扩到一个词，避免“一拖一大片”
+  function snapWordEnds(range) {
+    if (!range || range.collapsed) return range
+    var startWord = wordFromCaret({ node: range.startContainer, offset: range.startOffset })
+    if (startWord) {
+      try {
+        range.setStart(startWord.startContainer, startWord.startOffset)
+      } catch (err) {}
     }
-    var range = document.createRange()
-    try {
-      range.selectNodeContents(first)
-      range.setEndAfter(second)
-    } catch (err) {
-      return null
+    var endWord = wordFromCaret({ node: range.endContainer, offset: range.endOffset })
+    if (endWord) {
+      try {
+        range.setEnd(endWord.endContainer, endWord.endOffset)
+      } catch (err) {}
     }
-    return range
+    return range.collapsed ? null : range
   }
 
   var PHRASE_MAX = 12
@@ -275,15 +283,12 @@ const SELECT_SCRIPT = `
     if (!pendingPoint) return
     var p = pendingPoint
     pendingPoint = null
-    var range = null
-    if (startTok) {
-      var curTok = tokFromPoint(p.x, p.y)
-      if (curTok) range = rangeFromToks(startTok, curTok)
-    } else if (caretStart) {
-      var cur = caretFromPoint(p.x, p.y)
-      range = makeRange(caretStart, cur)
-    }
-    if (!range) return
+    if (!caretStart) return
+    var cur = caretFromPoint(p.x, p.y)
+    if (!cur) return
+    // 始终用逐字精确区间（不用 token 整段），手指到哪选到哪，跨行也只选中经过的字符
+    var range = makeRange(caretStart, cur)
+    if (!range || range.collapsed) return
     lastRange = range
     updateHighlight(range)
   }
@@ -304,11 +309,12 @@ const SELECT_SCRIPT = `
     }
     pendingPoint = null
     var range = null
-    if (startTok) {
-      // 有 kuromoji 词：单击 = 整词，拖动 = 词区间
-      range = moved ? lastRange : singleTokRange(startTok)
-    } else if (moved) {
-      range = lastRange
+    if (moved && lastRange) {
+      // 拖动：逐字区间已精确，松手时把两端向外吸附到整词边界
+      range = snapWordEnds(cloneRange(lastRange))
+    } else if (startTok) {
+      // 有 kuromoji 词：单击 = 整词
+      range = singleTokRange(startTok)
     } else if (caretStart) {
       // 未命中 .tok（纯英文/数字等）：单击也按 Intl.Segmenter 选一个词
       range = wordFromCaret(caretStart)

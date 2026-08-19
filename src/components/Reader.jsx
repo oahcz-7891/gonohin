@@ -14,6 +14,8 @@ import { resolveTheme } from '../lib/theme'
 
 const MIN_FONT = 14
 const MAX_FONT = 32
+// 纯标点/空白选区（如误拖到行末标点）不弹复制/翻译，避免打扰
+const PUNCT_ONLY_RE = /^[\s、。，．,.;:!?！？…—―～「」『』（）()【】《》〈〉"'“”‘’]*$/
 // 触屏（手机/平板）：屏蔽系统菜单，选中后自绘“复制 / 翻译”操作条；
 // 鼠标设备保持原行为，选中后直接弹翻译窗。
 const IS_TOUCH =
@@ -51,11 +53,21 @@ export default function Reader({ book, onBack }) {
     locRef.current.pageIndex != null || locRef.current.cfi ? { ...locRef.current, fontSize, selectMode } : null,
   )
 
-  // 统一划词监听：document（TXT/PDF）+ iframe（MOBI），EPUB 走 epubjs 内置事件
-  useSelection((sel) => {
+  // 划词上报统一入口：纯标点/空白选区直接丢弃，不弹“复制/翻译”
+  const handleSelection = useCallback((sel) => {
+    if (!sel) return
+    const text = (sel.text || '').trim()
+    if (!text || PUNCT_ONLY_RE.test(text)) {
+      setSelection(null)
+      setTranslateOpen(false)
+      return
+    }
     setSelection(sel)
-    if (sel) setTranslateOpen(false) // 新选区出现时回到“复制 / 翻译”操作条
-  })
+    setTranslateOpen(false) // 新选区出现时回到“复制 / 翻译”操作条
+  }, [])
+
+  // 统一划词监听：document（TXT/PDF）+ iframe（MOBI），EPUB 走 epubjs 内置事件
+  useSelection(handleSelection)
 
   // 翻页后清掉旧选区和操作条，避免停留在错误位置
   useEffect(() => {
@@ -138,16 +150,16 @@ export default function Reader({ book, onBack }) {
 
       <div className="reader-body">
         {book.format === FORMATS.TXT && (
-          <TxtRenderer ref={apiRef} book={book} progress={initialProgress} fontSize={fontSize} onProgress={handleProgress} onSelection={setSelection} />
+          <TxtRenderer ref={apiRef} book={book} progress={initialProgress} fontSize={fontSize} onProgress={handleProgress} onSelection={handleSelection} />
         )}
         {book.format === FORMATS.EPUB && (
-          <EpubRenderer ref={apiRef} book={book} progress={initialProgress} fontSize={fontSize} onProgress={handleProgress} onSelection={setSelection} />
+          <EpubRenderer ref={apiRef} book={book} progress={initialProgress} fontSize={fontSize} onProgress={handleProgress} onSelection={handleSelection} />
         )}
         {book.format === FORMATS.MOBI && (
-          <MobiRenderer ref={apiRef} book={book} progress={initialProgress} fontSize={fontSize} selectMode={selectMode} theme={theme} onProgress={handleProgress} onSelection={setSelection} />
+          <MobiRenderer ref={apiRef} book={book} progress={initialProgress} fontSize={fontSize} selectMode={selectMode} theme={theme} onProgress={handleProgress} onSelection={handleSelection} />
         )}
         {book.format === FORMATS.PDF && (
-          <PdfRenderer ref={apiRef} book={book} progress={initialProgress} onProgress={handleProgress} onSelection={setSelection} />
+          <PdfRenderer ref={apiRef} book={book} progress={initialProgress} onProgress={handleProgress} onSelection={handleSelection} />
         )}
         <button
           className={`page-nav page-nav-prev${selectMode ? ' page-nav-select-mode' : ''}`}
