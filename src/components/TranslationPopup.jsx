@@ -24,25 +24,30 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
   const [loading, setLoading] = useState(true)
   const [pos, setPos] = useState({ left: 8, top: 8 })
   const runIdRef = useRef(0)
+  const abortRef = useRef(null) // 当前运行对应的 AbortController，用于真正打断进行中的请求
   const source = text.length > MAX_SOURCE_LEN ? text.slice(0, MAX_SOURCE_LEN) + '…' : text
   // 深度模式有长度上限：超长文本禁用切换
   const deepDisabled = text.length > MAX_DEEP_LEN
 
-  const run = async () => {
+  // force：跳过缓存读取（「重新翻译」用），新结果仍会写回缓存
+  const run = async (force = false) => {
     const runId = ++runIdRef.current
+    abortRef.current?.abort() // 先打断上一次运行（重译 / 切模式），避免旧请求继续烧 token
+    const ac = new AbortController()
+    abortRef.current = ac
     setLoading(true)
     setError(null)
     setResult('')
     setStage(null)
     try {
       if (mode === 'deep') {
-        const stream = translateDeep(source, context, undefined, setStage)
+        const stream = translateDeep(source, context, undefined, setStage, ac.signal, { fresh: force })
         for await (const delta of stream) {
           if (runIdRef.current !== runId) return // 已被重译/切模式/关闭打断
           setResult((prev) => prev + delta)
         }
       } else {
-        const stream = await translateStream(source, context)
+        const stream = await translateStream(source, context, undefined, ac.signal, { fresh: force })
         for await (const delta of stream) {
           if (runIdRef.current !== runId) return // 已被重译/关闭打断
           setResult((prev) => prev + delta)
@@ -64,6 +69,8 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
       // 卸载时使进行中的流失效（需读最新 ref 值，勿复制到局部变量）
       // eslint-disable-next-line react-hooks/exhaustive-deps
       runIdRef.current++
+      // deep 模式的 agent loop 只在最后 yield 一次，靠 runId 拦不住，必须真正 abort 请求
+      abortRef.current?.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, mode])
@@ -118,7 +125,7 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
           >
             {mode === 'deep' ? '普通翻译' : '深度翻译'}
           </button>
-          <button className="btn" onClick={run} disabled={loading}>
+          <button className="btn" onClick={() => run(true)} disabled={loading}>
             重新翻译
           </button>
           <button className="btn" onClick={copy} disabled={!result || loading}>
