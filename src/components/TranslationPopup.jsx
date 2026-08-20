@@ -23,6 +23,7 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
   const [pos, setPos] = useState({ left: 8, top: 8 })
+  const [closing, setClosing] = useState(false) // 关闭退场动画中的标记，结束后再真正卸载
   const runIdRef = useRef(0)
   const abortRef = useRef(null) // 当前运行对应的 AbortController，用于真正打断进行中的请求
   const source = text.length > MAX_SOURCE_LEN ? text.slice(0, MAX_SOURCE_LEN) + '…' : text
@@ -75,6 +76,15 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, mode])
 
+  // 退场动画：先播 animation，结束后（或超时兜底）再调 onClose 卸载
+  const closeTimerRef = useRef(0)
+  const handleClose = () => {
+    if (closing) return
+    setClosing(true)
+    closeTimerRef.current = setTimeout(onClose, 200)
+  }
+  useEffect(() => () => clearTimeout(closeTimerRef.current), [])
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(result)
@@ -95,7 +105,7 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
   }, [x, y, result, error, loading, mode])
 
   return (
-    <div className="trans-popup" ref={popupRef} style={pos}>
+    <div className={closing ? 'trans-popup exit' : 'trans-popup'} ref={popupRef} style={pos}>
       <div className="trans-source" title="原文">
         {source}
         {source !== text && <span style={{ color: 'var(--fg-muted)' }}>（已截取前 {MAX_SOURCE_LEN} 字）</span>}
@@ -132,7 +142,7 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
             复制
           </button>
         </div>
-        <button className="btn btn-ghost" onClick={onClose}>
+        <button className="btn btn-ghost" onClick={handleClose}>
           关闭
         </button>
       </div>

@@ -39,8 +39,10 @@ export default function Reader({ book, onBack }) {
   const [deepMode, setDeepMode] = useState(false) // 触屏：点“深度翻译”以 agent loop 打开
   const [copied, setCopied] = useState(false) // 复制成功后的短暂反馈
   const [dragPct, setDragPct] = useState(null) // 进度条拖动中的临时值（0-1000），松开后跳页
+  const [actionsClosing, setActionsClosing] = useState(false) // 操作条退场动画中
   const apiRef = useRef(null)
   const copyTimerRef = useRef(0)
+  const actionsCloseTimerRef = useRef(0)
 
   // 渲染器进度上报：只更新内存 + 状态栏，落盘交给 useAutoSave
   const handleProgress = useCallback(
@@ -57,6 +59,8 @@ export default function Reader({ book, onBack }) {
 
   // 划词上报统一入口：纯标点/空白选区直接丢弃，不弹“复制/翻译”
   const handleSelection = useCallback((sel) => {
+    setActionsClosing(false)
+    clearTimeout(actionsCloseTimerRef.current)
     if (!sel) return
     const text = (sel.text || '').trim()
     if (!text || PUNCT_ONLY_RE.test(text)) {
@@ -74,12 +78,30 @@ export default function Reader({ book, onBack }) {
 
   // 翻页后清掉旧选区和操作条，避免停留在错误位置
   useEffect(() => {
+    setActionsClosing(false)
     setSelection(null)
     setTranslateOpen(false)
   }, [status?.pageIndex])
 
-  // 组件卸载时清掉复制反馈定时器
-  useEffect(() => () => clearTimeout(copyTimerRef.current), [])
+  // 退场动画：先播退场，结束后（超时兜底）再清掉选区和操作条
+  const closeActions = () => {
+    if (actionsClosing) return
+    setActionsClosing(true)
+    actionsCloseTimerRef.current = setTimeout(() => {
+      setSelection(null)
+      setTranslateOpen(false)
+      setActionsClosing(false)
+    }, 200)
+  }
+
+  // 组件卸载时清掉复制 / 操作条退场定时器
+  useEffect(
+    () => () => {
+      clearTimeout(copyTimerRef.current)
+      clearTimeout(actionsCloseTimerRef.current)
+    },
+    [],
+  )
 
   const copySelection = async () => {
     const text = selection?.text
@@ -211,7 +233,7 @@ export default function Reader({ book, onBack }) {
 
       {selection && IS_TOUCH && !translateOpen && (
         <div
-          className="sel-actions"
+          className={actionsClosing ? 'sel-actions exit' : 'sel-actions'}
           style={{
             left: Math.max(8, Math.min(selection.x, window.innerWidth - 260)),
             top: Math.max(8, Math.min(selection.y + 10, window.innerHeight - 56)),
@@ -236,10 +258,7 @@ export default function Reader({ book, onBack }) {
           <button
             className="sel-actions-close"
             aria-label="关闭"
-            onClick={() => {
-              setSelection(null)
-              setTranslateOpen(false)
-            }}
+            onClick={closeActions}
           >
             ✕
           </button>
