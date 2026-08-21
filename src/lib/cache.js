@@ -5,7 +5,7 @@ const PREFIX = 'gonohin:trans:'
 const MAX_ITEMS = 200 // 最多保留条目数，超限删最旧（保留 70% 余量）
 
 // 修改 translate.js 里任一 prompt（DRAFT_SYSTEM / 验证 / 修正）后 +1，让旧缓存自动作废
-const PROMPT_VERSION = 2
+const PROMPT_VERSION = 4
 
 // FNV-1a 32bit：把多段内容压成短 key。
 // 哈希有碰撞可能，所以原文（raw）随值一起存，读取时比对，碰撞时按未命中处理。
