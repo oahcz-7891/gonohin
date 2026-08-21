@@ -456,7 +456,7 @@ body {
 .reader-statusbar .progress-track::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 39px; /* 透明但可抓握：44px 为 Apple 最小触摸目标；再宽会占满轨道、吞掉“点到哪跳到哪”的跳转行为 */
+  width: 23px; /* 透明但可抓握：44px 为 Apple 最小触摸目标；再宽会占满轨道、吞掉“点到哪跳到哪”的跳转行为 */
   height: 22px;
   opacity: 0;
 }
@@ -466,7 +466,7 @@ body {
   background: transparent;
 }
 .reader-statusbar .progress-track::-moz-range-thumb {
-  width: 39px; /* 透明但可抓握：与 webkit 拇指保持一致 */
+  width: 23px; /* 透明但可抓握：与 webkit 拇指保持一致 */
   height: 22px;
   opacity: 0;
 }
