@@ -43,6 +43,13 @@ export default function Reader({ book, onBack }) {
   const apiRef = useRef(null)
   const copyTimerRef = useRef(0)
   const actionsCloseTimerRef = useRef(0)
+  // 关闭弹窗/操作条后的一小段窗口内忽略划词上报：
+  // 点弹窗外关闭时，TXT/PDF 的旧选区还在，useSelection 会在 touchend 后把同一选区再上报一次，
+  // 不拦的话刚点外部关掉又会立刻弹回来。MOBI/EPUB 选区在 iframe 里不受影响，但统一拦也无害。
+  const suppressUntilRef = useRef(0)
+  const suppressSelection = useCallback(() => {
+    suppressUntilRef.current = Date.now() + 400
+  }, [])
 
   // 渲染器进度上报：只更新内存 + 状态栏，落盘交给 useAutoSave
   const handleProgress = useCallback(
@@ -68,6 +75,8 @@ export default function Reader({ book, onBack }) {
       setTranslateOpen(false)
       return
     }
+    // 刚关掉弹窗/操作条后的同一选区重放要忽略，避免“点外部关闭 → 又弹回来”
+    if (Date.now() < suppressUntilRef.current) return
     setSelection(sel)
     setTranslateOpen(false) // 新选区出现时回到“复制 / 翻译”操作条
     setDeepMode(false)
@@ -86,6 +95,7 @@ export default function Reader({ book, onBack }) {
   // 退场动画：先播退场，结束后（超时兜底）再清掉选区和操作条
   const closeActions = () => {
     if (actionsClosing) return
+    suppressSelection() // 关闭后短暂忽略旧选区重放，避免 TXT/PDF 下刚关又弹回来
     setActionsClosing(true)
     actionsCloseTimerRef.current = setTimeout(() => {
       setSelection(null)
@@ -229,46 +239,60 @@ export default function Reader({ book, onBack }) {
         <span>{pct}%</span>
       </footer>
 
-      {selection && !IS_TOUCH && <TranslationPopup {...selection} onClose={() => setSelection(null)} />}
+      {selection && !IS_TOUCH && (
+        <TranslationPopup {...selection} onBackdropPress={suppressSelection} onClose={() => setSelection(null)} />
+      )}
 
       {selection && IS_TOUCH && !translateOpen && (
-        <div
-          className={actionsClosing ? 'sel-actions exit' : 'sel-actions'}
-          style={{
-            left: Math.max(8, Math.min(selection.x, window.innerWidth - 260)),
-            top: Math.max(8, Math.min(selection.y + 10, window.innerHeight - 56)),
-          }}
-        >
-          <button onClick={copySelection}>{copied ? '已复制' : '复制'}</button>
-          <button onClick={() => setTranslateOpen(true)}>翻译</button>
-          <button
-            disabled={selection.text.length > MAX_DEEP_LEN}
-            title={
-              selection.text.length > MAX_DEEP_LEN
-                ? `文本超过 ${MAX_DEEP_LEN} 字，无法深度翻译，请用「翻译」`
-                : undefined
-            }
-            onClick={() => {
-              setDeepMode(true)
-              setTranslateOpen(true)
+        <>
+          {/* 操作条遮罩：点操作条外即关闭，且拦截这次按下避免重新划词（同弹窗遮罩） */}
+          <div
+            className="sel-backdrop"
+            onPointerDown={() => {
+              suppressSelection()
+              closeActions()
+            }}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+          <div
+            className={actionsClosing ? 'sel-actions exit' : 'sel-actions'}
+            style={{
+              left: Math.max(8, Math.min(selection.x, window.innerWidth - 260)),
+              top: Math.max(8, Math.min(selection.y + 10, window.innerHeight - 56)),
             }}
           >
-            深度翻译
-          </button>
-          <button
-            className="sel-actions-close"
-            aria-label="关闭"
-            onClick={closeActions}
-          >
-            ✕
-          </button>
-        </div>
+            <button onClick={copySelection}>{copied ? '已复制' : '复制'}</button>
+            <button onClick={() => setTranslateOpen(true)}>翻译</button>
+            <button
+              disabled={selection.text.length > MAX_DEEP_LEN}
+              title={
+                selection.text.length > MAX_DEEP_LEN
+                  ? `文本超过 ${MAX_DEEP_LEN} 字，无法深度翻译，请用「翻译」`
+                  : undefined
+              }
+              onClick={() => {
+                setDeepMode(true)
+                setTranslateOpen(true)
+              }}
+            >
+              深度翻译
+            </button>
+            <button
+              className="sel-actions-close"
+              aria-label="关闭"
+              onClick={closeActions}
+            >
+              ✕
+            </button>
+          </div>
+        </>
       )}
 
       {selection && IS_TOUCH && translateOpen && (
         <TranslationPopup
           {...selection}
           mode={deepMode ? 'deep' : 'normal'}
+          onBackdropPress={suppressSelection}
           onClose={() => {
             setSelection(null)
             setTranslateOpen(false)

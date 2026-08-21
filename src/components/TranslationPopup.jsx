@@ -14,7 +14,7 @@ const STAGE_LABEL = {
   fixing: '按审校意见修正…',
 }
 
-export default function TranslationPopup({ text, context = '', x, y, mode: initialMode = 'normal', onClose }) {
+export default function TranslationPopup({ text, context = '', x, y, mode: initialMode = 'normal', onClose, onBackdropPress }) {
   const popupRef = useRef(null)
   // 初始模式来自调用方（触屏操作条的「翻译/深度翻译」区分），弹窗内可自由切换
   const [mode, setMode] = useState(initialMode) // 'normal' | 'deep'
@@ -80,6 +80,7 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
   const closeTimerRef = useRef(0)
   const handleClose = () => {
     if (closing) return
+    onBackdropPress?.() // 通知父级短暂忽略旧选区重放（TXT/PDF 下刚关掉又弹回来的情况）
     setClosing(true)
     closeTimerRef.current = setTimeout(onClose, 200)
   }
@@ -105,47 +106,56 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
   }, [x, y, result, error, loading, mode])
 
   return (
-    <div className={closing ? 'trans-popup exit' : 'trans-popup'} ref={popupRef} style={pos}>
-      <div className="trans-source" title="原文">
-        {source}
-        {source !== text && <span style={{ color: 'var(--fg-muted)' }}>（已截取前 {MAX_SOURCE_LEN} 字）</span>}
-      </div>
-
-      {error ? (
-        <div className="trans-error">{error}</div>
-      ) : (
-        <div className="trans-result">
-          {result}
-          {loading &&
-            (mode === 'deep' && stage ? (
-              <span className="trans-stage">{STAGE_LABEL[stage]}</span>
-            ) : (
-              <span className="trans-loading">▍</span>
-            ))}
+    <>
+      {/* 透明遮罩：点击弹窗外即关闭。必须盖住正文（含 MOBI iframe）才能拦截这次按下、
+          避免触发新一轮划词；z-index 低于弹窗，弹窗内按钮不受影响 */}
+      <div
+        className="trans-backdrop"
+        onPointerDown={handleClose}
+        onContextMenu={(e) => e.preventDefault()}
+      />
+      <div className={closing ? 'trans-popup exit' : 'trans-popup'} ref={popupRef} style={pos}>
+        <div className="trans-source" title="原文">
+          {source}
+          {source !== text && <span style={{ color: 'var(--fg-muted)' }}>（已截取前 {MAX_SOURCE_LEN} 字）</span>}
         </div>
-      )}
 
-      <div className="trans-actions">
-        <div>
-          <button
-            className="btn"
-            onClick={() => setMode(mode === 'deep' ? 'normal' : 'deep')}
-            disabled={mode === 'normal' && deepDisabled}
-            title={deepDisabled && mode === 'normal' ? `文本超过 ${MAX_DEEP_LEN} 字，无法深度翻译` : undefined}
-          >
-            {mode === 'deep' ? '普通翻译' : '深度翻译'}
-          </button>
-          <button className="btn" onClick={() => run(true)} disabled={loading}>
-            重新翻译
-          </button>
-          <button className="btn" onClick={copy} disabled={!result || loading}>
-            复制
+        {error ? (
+          <div className="trans-error">{error}</div>
+        ) : (
+          <div className="trans-result">
+            {result}
+            {loading &&
+              (mode === 'deep' && stage ? (
+                <span className="trans-stage">{STAGE_LABEL[stage]}</span>
+              ) : (
+                <span className="trans-loading">▍</span>
+              ))}
+          </div>
+        )}
+
+        <div className="trans-actions">
+          <div>
+            <button
+              className="btn"
+              onClick={() => setMode(mode === 'deep' ? 'normal' : 'deep')}
+              disabled={mode === 'normal' && deepDisabled}
+              title={deepDisabled && mode === 'normal' ? `文本超过 ${MAX_DEEP_LEN} 字，无法深度翻译` : undefined}
+            >
+              {mode === 'deep' ? '普通翻译' : '深度翻译'}
+            </button>
+            <button className="btn" onClick={() => run(true)} disabled={loading}>
+              重新翻译
+            </button>
+            <button className="btn" onClick={copy} disabled={!result || loading}>
+              复制
+            </button>
+          </div>
+          <button className="btn btn-ghost" onClick={handleClose}>
+            关闭
           </button>
         </div>
-        <button className="btn btn-ghost" onClick={handleClose}>
-          关闭
-        </button>
       </div>
-    </div>
+    </>
   )
 }

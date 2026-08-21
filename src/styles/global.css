@@ -456,9 +456,9 @@ body {
 .reader-statusbar .progress-track::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 1px;
+  width: 39px; /* 透明但可抓握：44px 为 Apple 最小触摸目标；再宽会占满轨道、吞掉“点到哪跳到哪”的跳转行为 */
   height: 22px;
-  opacity: 0; /* 隐藏圆点，保留可拖动热区 */
+  opacity: 0;
 }
 .reader-statusbar .progress-track::-moz-range-track {
   height: 3px;
@@ -466,9 +466,9 @@ body {
   background: transparent;
 }
 .reader-statusbar .progress-track::-moz-range-thumb {
-  width: 1px;
+  width: 39px; /* 透明但可抓握：与 webkit 拇指保持一致 */
   height: 22px;
-  opacity: 0; /* 隐藏圆点，保留可拖动热区 */
+  opacity: 0;
 }
 .font-size-controls {
   display: flex;
@@ -579,6 +579,15 @@ body {
 }
 
 /* ---------- 划词翻译弹窗 ---------- */
+/* 弹窗外点击关闭的透明遮罩：盖住正文（含 MOBI iframe）拦截按下，避免触发新一轮划词；
+   低于弹窗(200)让弹窗内按钮可点，高于正文内容(≤5)让正文收不到这次交互 */
+.trans-backdrop,
+.sel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  background: transparent;
+}
 .trans-popup {
   position: fixed;
   z-index: 200;
