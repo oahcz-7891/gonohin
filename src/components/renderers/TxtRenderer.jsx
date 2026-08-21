@@ -1,7 +1,7 @@
 // TXT 渲染器：CSS columns 分页（一屏一列），翻页 = scrollLeft 步进
 // 优点：不切文本（选区可跨页）、字号/窗口变化自动重排，进度按页索引恢复
 
-import { useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { decodeTxt } from '../../utils/text'
 
 const GAP = 40 // column-gap 固定 40px，与 step 计算一致
@@ -26,7 +26,8 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
   }, [book.id, book.blob])
 
   // 2. 容器宽度 → 列宽（一屏一列）
-  useEffect(() => {
+  //    useLayoutEffect：文本加载后要在首帧绘制前量好列宽并定位，否则会先画出第一页再跳回去
+  useLayoutEffect(() => {
     const el = colsRef.current
     if (!el) return
     const update = () => {
@@ -41,7 +42,7 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
   }, [text])
 
   // 3. 列宽/字号/文本变化时保持当前页比例重定位
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = colsRef.current
     if (!el || !colWidth) return
     el.scrollLeft = pageIndexRef.current * (colWidth + GAP)

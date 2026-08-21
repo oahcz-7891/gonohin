@@ -506,6 +506,13 @@ body {
   font-size: 13px;
   line-height: 1.6;
 }
+/* MOBI 恢复阅读位置前的加载遮罩：盖在隐藏的 iframe 上，避免黑屏/闪页 */
+.mobi-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--paper);
+}
 
 /* ---------- TXT 渲染器（CSS columns 分页） ---------- */
 .txt-scroll {

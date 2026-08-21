@@ -397,6 +397,8 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
 
   const [tokHtml, setTokHtml] = useState(null)
   const [tokPending, setTokPending] = useState(false)
+  // iframe 内容就绪并完成页码恢复前先隐藏：否则 iframe 首帧会画在第一页，再跳到保存位置（闪页）
+  const [ready, setReady] = useState(false)
 
   const pageIndexRef = useRef(progress?.pageIndex ?? 0)
   const didRestoreRef = useRef(false)
@@ -536,7 +538,10 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
 
   // srcDoc 重建（改字号/窗口大小）后，iframe 重新加载时要回到当前页
   useLayoutEffect(() => {
-    if (srcDoc) needsRestoreRef.current = true
+    if (srcDoc) {
+      needsRestoreRef.current = true
+      setReady(false) // 重载期间先隐藏，避免闪到第一页再跳回来
+    }
   }, [srcDoc])
 
   const report = (pageIndex, totalPages) => {
@@ -603,6 +608,8 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
       page = clamp(page, 0, totalPages - 1)
       scroller.scrollLeft = page * step
       report(page, totalPages)
+      // 页码恢复完成后再显示，用户首帧看到的就是保存的位置
+      setReady(true)
     }
 
     const onScroll = () => {
@@ -676,14 +683,23 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
           <span>{combined ? '加载中…' : '解析中…'}</span>
         </div>
       ) : (
-        <iframe
-          ref={frameRef}
-          className="trans-iframe mobi-frame"
-          srcDoc={srcDoc}
-          sandbox="allow-same-origin allow-scripts"
-          onLoad={handleFrameLoad}
-          title={book.title}
-        />
+        <>
+          {!ready && (
+            <div className="placeholder mobi-loading">
+              <span>加载中…</span>
+            </div>
+          )}
+          {/* 未完成页码恢复前隐藏，避免闪到第一页；恢复后由 measure() 置 ready 再显示 */}
+          <iframe
+            ref={frameRef}
+            className="trans-iframe mobi-frame"
+            srcDoc={srcDoc}
+            sandbox="allow-same-origin allow-scripts"
+            onLoad={handleFrameLoad}
+            title={book.title}
+            style={{ visibility: ready ? 'visible' : 'hidden' }}
+          />
+        </>
       )}
       {pageInfo.totalPages > 0 && (
         <div className="txt-page-hint">
