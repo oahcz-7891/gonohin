@@ -20,6 +20,12 @@ export const API_PRESETS = [
   { name: '智谱', baseURL: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
 ]
 
+// 翻译上下文长度控制：划词只发给模型的上文，仅用于理解语境/专有名词，不参与翻译。
+// 整段 ≤ CTX_MAX 时整段发送；超长则以选区为中心截取左右各 CTX_RADIUS 字。
+// 数值越小输入 token 越少、生成/排队越快，但上下文信息也越少。改这里即可全局调整。
+export const CTX_MAX = 30
+export const CTX_RADIUS = 15
+
 export const FORMATS = { EPUB: 'EPUB', PDF: 'PDF', MOBI: 'MOBI', TXT: 'TXT' }
 
 // 扩展名 → 格式

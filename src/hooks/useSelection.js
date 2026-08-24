@@ -5,6 +5,7 @@
 // EPUB 不用本 hook——epubjs 提供内置 selected 事件（坐标换算在渲染器内做）。
 
 import { useEffect, useRef } from 'react'
+import { CTX_MAX, CTX_RADIUS } from '../lib/constants'
 
 // 从选区向上找最近的块级元素（段落），取整段文本作为翻译上下文
 function extractContext(range) {
@@ -18,12 +19,12 @@ function extractContext(range) {
       block = block.parentElement
     }
     const text = (block?.textContent || '').replace(/\s+/g, ' ').trim()
-    if (!text || text.length <= 400) return text
-    // 整段过长（如整本书一个 DIV）：以选区为中心截取 ±200 字
+    if (!text || text.length <= CTX_MAX) return text
+    // 整段过长（如整本书一个 DIV）：以选区为中心截取左右各 CTX_RADIUS 字
     const selText = range.toString().trim()
     const idx = text.indexOf(selText)
     const center = idx >= 0 ? idx : Math.floor(text.length / 2)
-    return text.slice(Math.max(0, center - 200), Math.min(text.length, center + 200))
+    return text.slice(Math.max(0, center - CTX_RADIUS), Math.min(text.length, center + CTX_RADIUS))
   } catch {
     return ''
   }

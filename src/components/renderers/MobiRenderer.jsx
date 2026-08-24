@@ -239,6 +239,7 @@ const SELECT_SCRIPT = `
   }
 
   // 从选区向上找最近块级元素（段落），取整段文本作为翻译上下文
+  // 长度上限与主线程 constants.js 的 CTX_MAX/CTX_RADIUS 对齐（iframe 内无法 import）
   function contextFromRange(range) {
     try {
       var node = range.startContainer
@@ -250,12 +251,12 @@ const SELECT_SCRIPT = `
         block = block.parentElement
       }
       var text = (block && block.textContent ? block.textContent : '').replace(/\\s+/g, ' ').trim()
-      if (!text || text.length <= 400) return text
-      // 整段过长（如整本书一个 DIV）：以选区为中心截取 ±200 字
+      if (!text || text.length <= 120) return text
+      // 整段过长（如整本书一个 DIV）：以选区为中心截取左右各 60 字
       var selText = range.toString().replace(/\\s+/g, ' ').trim()
       var idx = text.indexOf(selText)
       var center = idx >= 0 ? idx : Math.floor(text.length / 2)
-      return text.slice(Math.max(0, center - 200), Math.min(text.length, center + 200))
+      return text.slice(Math.max(0, center - 60), Math.min(text.length, center + 60))
     } catch (err) {
       return ''
     }

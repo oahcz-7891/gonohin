@@ -662,6 +662,12 @@ body {
 .trans-loading {
   animation: blink 0.8s infinite;
 }
+.trans-timing {
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
 .trans-stage {
   font-size: 12px;
   color: var(--fg-muted);

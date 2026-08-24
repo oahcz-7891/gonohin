@@ -24,6 +24,7 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
   const [loading, setLoading] = useState(true)
   const [pos, setPos] = useState({ left: 8, top: 8 })
   const [closing, setClosing] = useState(false) // 关闭退场动画中的标记，结束后再真正卸载
+  const [timing, setTiming] = useState(null) // { first: 首 token 耗时ms, total: 总耗时ms }，用于诊断慢在哪
   const runIdRef = useRef(0)
   const abortRef = useRef(null) // 当前运行对应的 AbortController，用于真正打断进行中的请求
   const source = text.length > MAX_SOURCE_LEN ? text.slice(0, MAX_SOURCE_LEN) + '…' : text
@@ -36,25 +37,34 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
     abortRef.current?.abort() // 先打断上一次运行（重译 / 切模式），避免旧请求继续烧 token
     const ac = new AbortController()
     abortRef.current = ac
+    const t0 = performance.now() // 计时起点：真实 requests 从这里开始，冷启动/排队都算进去
+    let firstMs = null
+    const stampFirst = () => {
+      if (firstMs == null) firstMs = performance.now() - t0
+    }
     setLoading(true)
     setError(null)
     setResult('')
     setStage(null)
+    setTiming(null)
     try {
       if (mode === 'deep') {
         const stream = translateDeep(source, context, undefined, setStage, ac.signal, { fresh: force })
         for await (const delta of stream) {
           if (runIdRef.current !== runId) return // 已被重译/切模式/关闭打断
+          stampFirst()
           setResult((prev) => prev + delta)
         }
       } else {
         const stream = await translateStream(source, context, undefined, ac.signal, { fresh: force })
         for await (const delta of stream) {
           if (runIdRef.current !== runId) return // 已被重译/关闭打断
+          stampFirst()
           setResult((prev) => prev + delta)
         }
       }
       setLoading(false)
+      setTiming({ first: firstMs, total: performance.now() - t0 })
     } catch (e) {
       if (runIdRef.current === runId) {
         setError(e.message)
@@ -132,6 +142,14 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
                 <span className="trans-loading">▍</span>
               ))}
           </div>
+        )}
+
+        {/* 耗时诊断：first=首 token 前耗时（网络+排队+模型思考，这段时间画面在转圈），total=总耗时 */}
+        {loading && timing?.first != null && (
+          <div className="trans-timing">首字 {Math.round(timing.first)}ms…</div>
+        )}
+        {!loading && timing && (
+          <div className="trans-timing">首字 {Math.round(timing.first)}ms · 总 {Math.round(timing.total)}ms</div>
         )}
 
         <div className="trans-actions">

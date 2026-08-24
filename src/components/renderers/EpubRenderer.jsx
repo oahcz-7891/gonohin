@@ -6,6 +6,7 @@ import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import ePub from 'epubjs'
 import { getSettings } from '../../lib/storage'
 import { resolveTheme } from '../../lib/theme'
+import { CTX_MAX, CTX_RADIUS } from '../../lib/constants'
 
 // EPUB 内容页在 iframe 里，用其 document 取上下文（注意 selectNode 用 contentWindow 的 Range）
 function extractEpubContext(range, doc) {
@@ -19,11 +20,11 @@ function extractEpubContext(range, doc) {
       block = block.parentElement
     }
     const text = (block?.textContent || '').replace(/\s+/g, ' ').trim()
-    if (!text || text.length <= 400) return text
+    if (!text || text.length <= CTX_MAX) return text
     const selText = range.toString().replace(/\s+/g, ' ').trim()
     const idx = text.indexOf(selText)
     const center = idx >= 0 ? idx : Math.floor(text.length / 2)
-    return text.slice(Math.max(0, center - 200), Math.min(text.length, center + 200))
+    return text.slice(Math.max(0, center - CTX_RADIUS), Math.min(text.length, center + CTX_RADIUS))
   } catch {
     return ''
   }
