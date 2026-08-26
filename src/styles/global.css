@@ -738,7 +738,8 @@ body {
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  padding: 24px;
+  /* 底部多留一点空间：滚到底时也能完整显示「测试连接」结果 */
+  padding: 24px 24px 64px;
   display: flex;
   flex-direction: column;
   gap: 24px;
