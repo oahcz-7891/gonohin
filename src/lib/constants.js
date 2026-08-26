@@ -10,6 +10,9 @@ export const DEFAULT_SETTINGS = {
   baseURL: 'https://api.deepseek.com',
   model: 'deepseek-chat',
   theme: 'system', // system | light | dark
+  // 思考强度档位（auto=| off=关 | low | medium | high | max），按 baseURL 识别供应商映射
+  thinkingNormal: 'auto', // 普通翻译
+  thinkingDeep: 'auto', // 深度翻译
 }
 
 // OpenAI 兼容 API 预设（均为国内可直接访问的服务）

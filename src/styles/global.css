@@ -97,6 +97,9 @@ body {
 
 /* ---------- 顶栏 ---------- */
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -668,16 +671,6 @@ body {
   line-height: 1.4;
   flex-shrink: 0;
 }
-.trans-stage {
-  font-size: 12px;
-  color: var(--fg-muted);
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px 10px;
-  margin-left: 6px;
-  vertical-align: middle;
-}
 @keyframes blink {
   50% {
     opacity: 0.2;
@@ -735,18 +728,25 @@ body {
 }
 
 /* ---------- 设置页 ---------- */
+/* 整页纵向铺满 + 顶栏吸顶，内容区居中限宽 */
 .settings-page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.settings-body {
+  width: 100%;
   max-width: 520px;
   margin: 0 auto;
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
 }
 .settings-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 .settings-group label {
   font-size: 13px;
@@ -761,6 +761,17 @@ body {
   background: var(--bg-elev);
   color: var(--fg);
 }
+/* 自定义下拉箭头：原生箭头无法移动，用 appearance:none + 背景图，并把箭头往左靠 */
+.settings-group select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--bg-elev);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center; /* 箭头距右缘 14px，比默认更靠左 */
+  padding-right: 38px;
+  cursor: pointer;
+}
 .settings-group input:focus,
 .settings-group select:focus {
   outline: none;
@@ -770,6 +781,52 @@ body {
   font-size: 12px;
   color: var(--fg-muted);
   line-height: 1.6;
+}
+/* 可清除输入框：模型 / API Key 的 ✕ 按钮 */
+.input-clear {
+  position: relative;
+}
+.input-clear input {
+  width: 100%;
+  padding-right: 34px;
+}
+.input-clear-btn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.input-clear-btn:hover {
+  opacity: 1;
+  color: var(--fg);
+  background: var(--border);
+}
+.thinking-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.thinking-field label {
+  min-width: 68px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.thinking-field select {
+  flex: 1;
 }
 .settings-test-result {
   font-size: 13px;

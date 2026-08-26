@@ -8,7 +8,6 @@ import PdfRenderer from './renderers/PdfRenderer'
 import TranslationPopup from './TranslationPopup'
 import { FORMATS } from '../lib/constants'
 import { getProgress, getSettings } from '../lib/storage'
-import { MAX_DEEP_LEN } from '../lib/translate'
 import { useAutoSave } from '../hooks/useAutoSave'
 import { useSelection } from '../hooks/useSelection'
 import { resolveTheme } from '../lib/theme'
@@ -36,7 +35,7 @@ export default function Reader({ book, onBack }) {
   const [status, setStatus] = useState(null) // { pageIndex, totalPages }
   const [selection, setSelection] = useState(null) // { text, context, x, y } → 划词翻译弹窗
   const [translateOpen, setTranslateOpen] = useState(false) // 触屏：点“翻译（AI）”后再打开弹窗
-  const [deepMode, setDeepMode] = useState(false) // 触屏：点“深度翻译”以 agent loop 打开
+  const [deepMode, setDeepMode] = useState(false) // 触屏：点“深度翻译”以普通流式打开（思考强度走深度档）
   const [copied, setCopied] = useState(false) // 复制成功后的短暂反馈
   const [dragPct, setDragPct] = useState(null) // 进度条拖动中的临时值（0-1000），松开后跳页
   const [actionsClosing, setActionsClosing] = useState(false) // 操作条退场动画中
@@ -264,12 +263,6 @@ export default function Reader({ book, onBack }) {
             <button onClick={copySelection}>{copied ? '已复制' : '复制'}</button>
             <button onClick={() => setTranslateOpen(true)}>翻译</button>
             <button
-              disabled={selection.text.length > MAX_DEEP_LEN}
-              title={
-                selection.text.length > MAX_DEEP_LEN
-                  ? `文本超过 ${MAX_DEEP_LEN} 字，无法深度翻译，请用「翻译」`
-                  : undefined
-              }
               onClick={() => {
                 setDeepMode(true)
                 setTranslateOpen(true)

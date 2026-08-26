@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { getSettings, setSettings } from '../lib/storage'
 import { API_PRESETS } from '../lib/constants'
 import { normalizeBaseURL } from '../lib/translate'
+import { getThinkingOptions, getThinkingHint, getProviderLabel } from '../lib/thinking'
 import { applyTheme } from '../lib/theme'
 
 export default function Settings({ onBack }) {
@@ -22,6 +23,12 @@ export default function Settings({ onBack }) {
       applyTheme(value)
     }
   }
+
+  // 思考强度按当前 baseURL 识别的供应商展示对应档位
+  const thinkingOptions = (key) => getThinkingOptions(form.baseURL, form[key])
+
+  // 清空指定文本字段（模型 / API Key 输入框的 ✕ 按钮）
+  const clearField = (key) => () => setForm((f) => ({ ...f, [key]: '' }))
 
   const applyPreset = (e) => {
     const preset = API_PRESETS.find((p) => p.name === e.target.value)
@@ -76,6 +83,7 @@ export default function Settings({ onBack }) {
         </button>
       </header>
 
+      <div className="settings-body">
       <div className="settings-group">
         <label htmlFor="preset">服务商预设</label>
         <select id="preset" onChange={applyPreset} defaultValue="">
@@ -98,21 +106,57 @@ export default function Settings({ onBack }) {
 
       <div className="settings-group">
         <label htmlFor="model">模型</label>
-        <input id="model" type="text" placeholder="deepseek-chat" value={form.model} onChange={set('model')} spellCheck={false} />
+        <div className="input-clear">
+          <input id="model" type="text" placeholder="deepseek-chat" value={form.model} onChange={set('model')} spellCheck={false} />
+          {form.model && (
+            <button className="input-clear-btn" aria-label="清除模型" onClick={clearField('model')}>✕</button>
+          )}
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <label>
+          思考强度 · <span style={{ color: 'var(--primary)' }}>{getProviderLabel(form.baseURL)}</span>
+        </label>
+        <div className="thinking-field">
+          <label htmlFor="thinkingNormal">普通翻译</label>
+          <select id="thinkingNormal" value={form.thinkingNormal} onChange={set('thinkingNormal')}>
+            {thinkingOptions('thinkingNormal').map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="thinking-field">
+          <label htmlFor="thinkingDeep">深度翻译</label>
+          <select id="thinkingDeep" value={form.thinkingDeep} onChange={set('thinkingDeep')}>
+            {thinkingOptions('thinkingDeep').map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="settings-hint">{getThinkingHint(form.baseURL)}</div>
       </div>
 
       <div className="settings-group">
         <label htmlFor="apiKey">API Key</label>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            id="apiKey"
-            type={showKey ? 'text' : 'password'}
-            placeholder="sk-…"
-            value={form.apiKey}
-            onChange={set('apiKey')}
-            style={{ flex: 1 }}
-            autoComplete="off"
-          />
+          <div className="input-clear" style={{ flex: 1 }}>
+            <input
+              id="apiKey"
+              type={showKey ? 'text' : 'password'}
+              placeholder="sk-…"
+              value={form.apiKey}
+              onChange={set('apiKey')}
+              autoComplete="off"
+            />
+            {form.apiKey && (
+              <button className="input-clear-btn" aria-label="清除 API Key" onClick={clearField('apiKey')}>✕</button>
+            )}
+          </div>
           <button className="btn" onClick={() => setShowKey((v) => !v)}>
             {showKey ? '隐藏' : '显示'}
           </button>
@@ -142,6 +186,7 @@ export default function Settings({ onBack }) {
           </button>
         </div>
         {testResult && <div className={`settings-test-result ${testResult.ok ? 'ok' : 'fail'}`}>{testResult.message}</div>}
+      </div>
       </div>
     </div>
   )

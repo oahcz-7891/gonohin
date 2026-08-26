@@ -13,10 +13,11 @@
   - MOBI / AZW3 → @lingo-reader/mobi-parser
   - TXT → 原生分页（自动检测 UTF-8 / Shift_JIS 编码）
 - 划词翻译：触屏设备自绘「复制 / 翻译 / 深度翻译」操作条，鼠标设备选中直接弹翻译窗；SSE 流式输出译文（手写解析器，零依赖）
-- 深度翻译：agent loop（初译 → 文章内验证 → 按审校意见修正 → 再验证），自动完成翻译、词汇语法讲解与读音校验（超长文本自动限制）
+- 深度翻译：与普通翻译同一条单次流式管线，但思考强度走独立的「深度翻译」档；可翻译长文本
+- 思考强度：普通翻译 / 深度翻译可分别设置思考强度，并按服务商映射到对应参数（DeepSeek·Kimi·智谱 → thinking + reasoning_effort，通义 → enable_thinking，OpenAI → reasoning_effort）
 - 翻译缓存：结果写入 localStorage（LRU 淘汰），重复翻译同一段直接重放、零 API 调用；「重新翻译」可强制刷新
 - 界面风格：弹窗与划词操作条采用 iOS 26 液体玻璃材质、高光边缘与弹性入场 / 退场动画
-- 设置页：OpenAI 兼容 API Key 配置（DeepSeek / 通义千问 / Kimi / 智谱 预设），带连接测试
+- 设置页：OpenAI 兼容 API Key 配置（DeepSeek / 通义千问 / Kimi / 智谱 预设），带连接测试与思考强度调节
 - 阅读进度：按格式保存（CFI / 页码 / 章节），自动定时落盘并在刷新后恢复
 
 ### 技术栈
@@ -60,10 +61,11 @@ A pure front-end Japanese e-book reader supporting EPUB / PDF / MOBI / AZW3 / TX
   - MOBI / AZW3 → @lingo-reader/mobi-parser
   - TXT → native pagination with UTF-8 / Shift_JIS auto-detection
 - Selection translation: touch devices get a custom copy / translate / deep-translate bar; mouse devices open the translator directly on selection. Translations stream in via SSE with a hand-written, zero-dependency parser.
-- Deep translation: an agent loop (draft → in-context verification → fix per review → re-verify) that produces a polished translation with vocabulary/grammar notes and reading checks (automatically limited for long texts).
+- Deep translation: the same single-stream pipeline as normal translation, but with its own thinking-effort level (set separately in settings); handles long text.
+- Thinking strength: normal and deep translation each have a configurable thinking-effort level, mapped per provider (DeepSeek / Kimi / Zhipu → thinking + reasoning_effort, Qwen → enable_thinking, OpenAI → reasoning_effort).
 - Translation cache: results are stored in localStorage (LRU eviction); repeating a translation replays instantly with zero API calls, while "re-translate" forces a fresh run.
 - UI style: the popup and selection bar use an iOS 26 Liquid Glass material with edge highlight and springy entrance / exit animations.
-- Settings: OpenAI-compatible API key setup with presets for DeepSeek / Qwen / Kimi / Zhipu, plus a connection test.
+- Settings: OpenAI-compatible API key setup with presets for DeepSeek / Qwen / Kimi / Zhipu, plus a connection test and thinking-strength controls.
 - Reading progress: saved per format (CFI / page / chapter), auto-persisted on an interval and restored on reload.
 
 ### Tech Stack

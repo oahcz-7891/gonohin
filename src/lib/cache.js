@@ -23,10 +23,11 @@ function hash(raw) {
  *   mode: 'normal' | 'deep'（两条管线的输出不同，必须分开缓存）
  *   text / context：翻译输入
  *   model / baseURL：不同服务/模型结果不同
+ *   thinking：思考强度档位（不同档位可能产出不同译文，需分开缓存）
  * 返回 { key, raw }，raw 用于读取时校验防碰撞。
  */
-export function makeCacheKey({ mode, text, context = '', model, baseURL }) {
-  const raw = [PROMPT_VERSION, mode, text.trim(), (context || '').trim(), model, baseURL].join('')
+export function makeCacheKey({ mode, text, context = '', model, baseURL, thinking = '' }) {
+  const raw = [PROMPT_VERSION, mode, text.trim(), (context || '').trim(), model, baseURL, thinking].join('')
   return { key: PREFIX + hash(raw), raw }
 }
 

@@ -46,7 +46,8 @@ src/
 │   ├── storage.js               # localStorage 封装（设置 + 进度）
 │   ├── db.js                    # IndexedDB 封装（shelf 用）
 │   ├── importBook.js            # 导入管线：格式识别→元数据→入库
-│   ├── translate.js             # 翻译核心：普通流式 + 深度 agent loop
+│   ├── translate.js             # 翻译核心：普通/深度单次流式（深度走独立思考档）
+│   ├── thinking.js              # 思考强度供应商适配层（识别供应商 → 映射请求体字段）
 │   ├── sse.js                   # 手写 SSE 解析器
 │   ├── cache.js                 # 翻译结果 LRU 缓存（localStorage）
 │   ├── tokenize.js              # 分词 Worker 客户端封装
@@ -95,18 +96,19 @@ src/main.jsx
 
 | 封装 | 存储 key | 内容 |
 |---|---|---|
-| `getSettings()` / `setSettings()` | `gonohin:settings` | `{ apiKey, baseURL, model, theme }`，读取时与 `DEFAULT_SETTINGS` 深合并 |
+| `getSettings()` / `setSettings()` | `gonohin:settings` | `{ apiKey, baseURL, model, theme, thinkingNormal, thinkingDeep }`，读取时与 `DEFAULT_SETTINGS` 深合并 |
 | `getProgress(bookId)` / `saveProgress(bookId, p)` | `gonohin:progress:<id>` | 阅读进度（见 7.4），写入时自动带 `updatedAt` |
 
 ### 4.3 翻译缓存 —— `lib/cache.js`
 
 localStorage 里的 LRU 缓存，`key` 前缀 `gonohin:trans:`。
 
-- `makeCacheKey({mode, text, context, model, baseURL})` → `{ key, raw }`
-  - `raw` 是 `[PROMPT_VERSION, mode, text, context, model, baseURL].join(分隔符)`；`key` 是它的 FNV-1a 哈希，`raw` 随值暂存，读取时比对防碰撞。
+- `makeCacheKey({mode, text, context, model, baseURL, thinking})` → `{ key, raw }`
+  - `raw` 是 `[PROMPT_VERSION, mode, text, context, model, baseURL, thinking].join(分隔符)`；`key` 是它的 FNV-1a 哈希，`raw` 随值暂存，读取时比对防碰撞。
+  - `thinking` 纳入 key：不同思考强度档位可能产出不同译文，需分开缓存。
 - `cacheGet(key, raw)`：比对 `raw` 一致才命中。
 - `cacheSet(key, raw, value)`：写入，超 `MAX_ITEMS` 时按时间戳淘汰（LRU）。
-- `PROMPT_VERSION`：**改任意翻译提示词后必须 +1**，否则旧 token 会命中错误缓存。这非常重要（改 `translate.js` 的 `DRAFT_SYSTEM` / 验证 / 修正 prompt 时都要同步改这里）。
+- `PROMPT_VERSION`：**改任意翻译提示词后必须 +1**，否则旧 token 会命中错误缓存。这非常重要（改 `translate.js` 的 `DRAFT_SYSTEM` 时都要同步改这里）。
 
 ---
 
@@ -266,7 +268,7 @@ book.format === PDF  → <PdfRenderer … />
 
 ## 9. 翻译管线 —— `lib/translate.js`
 
-两条管线，都写缓存、都能被信号 cancel。
+两个入口（普通翻译 `translateStream`、深度翻译 `translateDeep`），都是单次流式、都写缓存、都能被信号 cancel；两者差异只在思考强度档位（`thinkingNormal` vs `thinkingDeep`）。
 
 ### 9.1 请求构造
 
@@ -284,6 +286,8 @@ buildMessages(text, context) → messages
 
 > ⚠️ 改这里的任何文字后，必须把 `cache.js` 的 `PROMPT_VERSION` **+1**。
 
+每个请求体会额外追加 `thinkingBody(settings, level)`（见 `lib/thinking.js`）：`level='auto'` 时为空对象（不传思考参数，跟随模型默认）；否则按供应商映射出 `thinking` / `reasoning_effort` / `enable_thinking` 等字段。
+
 ### 9.2 `translateStream` — 普通翻译（单次流式）
 
 ```js
@@ -294,19 +298,19 @@ translateStream(text, context, settings, signal, opts)
 ```
 
 - `opts.fresh`：跳过缓存读取（「重新翻译」用），结果仍写回。
-- `opts.cache=false`：不读不写（深度翻译的初译草稿用）。
+- `opts.thinking`：思考强度档位；默认用 `settings.thinkingNormal`（深度翻译会传 `thinkingDeep`）。
 
-### 9.3 `translateDeep` — 深度翻译（agent loop）
+### 9.3 `translateDeep` — 深度翻译（单次流式）
 
-对任意选区：**初译 → 验证 → 修正 → 再验证**，最多 4 次 API。
+与 `translateStream` 同一条管线，唯一区别是思考强度固定走 `settings.thinkingDeep`：
 
-1. `translateStream(…, {cache:false})` 初译草稿（流式）。
-2. `chatOnce`（非流式）验证：传入 system（审校）+ user（含译文），期望返回 `{"pass":true/false, "issues":"…", "final":"…"}`，用 `extractJSON` 稳健解析（兼容纯 JSON / 代码块 / 前后说明文字）。
-3. 若 fail → 流式按审校意见重译 → 再验证一轮。
-4. 最后 `cacheSet` 整个 loop 的最终结果，只 `yield final` 一次。
+```js
+translateDeep(text, context, settings, signal, opts)
+  → yield* translateStream(…, { thinking: settings.thinkingDeep })
+```
 
-`MAX_DEEP_LEN = 100`：超过 100 字拒绝深度翻译（避免多轮烧钱）。
-`onStage` 回调：`'translating' | 'verifying' | 'fixing'`，弹窗据此显示阶段。
+- 深度翻译不再有多轮「验证 → 修正 → 再验证」agent loop，也不再有 `MAX_DEEP_LEN` 长度上限。
+- 弹窗里的「普通翻译 / 深度翻译」切换只改变所用思考强度档位（`thinkingNormal` vs `thinkingDeep`）。
 
 ---
 
@@ -342,6 +346,8 @@ translateStream(text, context, settings, signal, opts)
 ### 11.2 设置 —— `Settings.jsx`
 
 - `form` 初始 `getSettings()`；`applyPreset` 从 `API_PRESETS` 填充 baseURL+model。
+- 思考强度：普通翻译 / 深度翻译各一个下拉（`thinkingNormal` / `thinkingDeep`），档位选项与提示按当前 baseURL 识别的供应商展示（见 `lib/thinking.js`）。
+- 顶栏通栏并吸顶（`position: sticky`），内容区 `.settings-body` 居中限宽；模型 / API Key 输入框带 ✕ 清除按钮。
 - `testConnection()`：非流式 `max_tokens:1`，`{ok, message}`。
 - 存 `localStorage`，浏览器直连 API，不经过任何服务器。
 
@@ -362,7 +368,7 @@ translateStream(text, context, settings, signal, opts)
 | `API_PRESETS` | 设置页的服务商预设 | 增删改预设 |
 | `DEFAULT_SETTINGS` | 默认 baseURL（DeepSeek）/ model / theme | 首次打开默认值 |
 | `MAX_SOURCE_LEN` (TranslationPopup) | 弹窗原文显示截断长度 2000 | 只影响弹窗显示 |
-| `MAX_DEEP_LEN` (translate) | 深度翻译文本上限 100 | 深度开关禁用条件 |
+| `PROVIDER_THINKING` / `buildThinkingParams` (thinking) | 思考强度档位与供应商→请求体字段映射 | 新增/调整思考档位、改动各供应商字段映射 |
 | `PROMPT_VERSION` (cache) | 缓存版本号 | **改 prompt 后必须 +1** |
 | `PUNCT_ONLY_RE` (Reader) | 纯标点/空白选区丢弃 | 划词过滤 |
 
@@ -372,8 +378,9 @@ translateStream(text, context, settings, signal, opts)
 
 | 想改 | 文件 | 具体位置 |
 |---|---|---|
-| 翻译结果更准/更全 | `lib/translate.js` | `DRAFT_SYSTEM`（普通）、`chatOnce` 的验证 system（深度） |
-| 翻译慢/首字慢 | 设置里换 model；`lib/constants.js` 的 `CTX_MAX` | 见第 12 节 |
+| 翻译结果更准/更全 | `lib/translate.js` | `DRAFT_SYSTEM`（普通/深度共用） |
+| 控制思考 / 首字速度 | `lib/thinking.js` + `Settings.jsx` | `thinkingNormal` / `thinkingDeep` |
+| 翻译慢/首字慢 | 设置里换 model / 调思考强度；`lib/constants.js` 的 `CTX_MAX` | 见第 12 节 |
 | 上下文太长/太短 | `lib/constants.js` | `CTX_MAX` / `CTX_RADIUS` |
 | 缓存不生效/旧结果弹回 | `lib/cache.js` | `PROMPT_VERSION` +1 |
 | 划词选不中想要的词 | `MobiRenderer.jsx` `SELECT_SCRIPT` | `wordFromCaret` / `snapWordEnds` |
