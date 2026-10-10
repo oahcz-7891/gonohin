@@ -3,6 +3,9 @@
 
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { decodeTxt } from '../../utils/text'
+import { getFlags } from '../../lib/uitest'
+// 诊断策略③：瞬时跳页。平滑动画/滚动惯性在 iOS 上可能吞掉手势，用瞬时跳页验证（lib/uitest.js）
+const scrollBehavior = () => (getFlags().instantScroll ? 'auto' : 'smooth')
 
 const GAP = 40 // column-gap 固定 40px，与 step 计算一致
 
@@ -12,7 +15,11 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
   const [colWidth, setColWidth] = useState(0)
   const colsRef = useRef(null)
   const pageIndexRef = useRef(progress?.pageIndex ?? 0)
-  const [pageInfo, setPageInfo] = useState({ pageIndex: 0, totalPages: 0 })
+  // 程序化翻页的目标页。翻页是平滑滚动，动画途中 scrollLeft 是中间值，用它反推出来的
+  // pageIndexRef 会滞后——连点两下只会走一页；而「停 200ms 吸附到整页」的逻辑若按中间值取整，
+  // 还会把页面拉回出发页（iOS 上动画一卡就发生）。所以程序化翻页自己记目标：
+  // move() 只改它，settle() 以它为准（吸附 = 把这一页走完），走完再交还给手势。
+  const navTargetRef = useRef(null)
 
   // 1. 解码文本（UTF-8 检测失败回退 Shift_JIS）
   useEffect(() => {
@@ -46,6 +53,7 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
     const el = colsRef.current
     if (!el || !colWidth) return
     el.scrollLeft = pageIndexRef.current * (colWidth + GAP)
+    navTargetRef.current = null // 重排后旧的翻页目标作废
   }, [colWidth, fontSize, text])
 
   // 3.5 列宽/文本就绪后立即计算一次页码（初次加载无滚动事件，否则页码与进度不显示）
@@ -56,7 +64,6 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
     const totalPages = Math.max(1, Math.round(el.scrollWidth / step))
     const pageIndex = Math.min(totalPages - 1, Math.max(0, Math.round(el.scrollLeft / step)))
     pageIndexRef.current = pageIndex
-    setPageInfo({ pageIndex, totalPages })
     onProgress({ pageIndex, totalPages, percentage: (pageIndex + 1) / totalPages })
   }, [colWidth, text, onProgress])
 
@@ -73,21 +80,28 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
         const totalPages = Math.max(1, Math.round(el.scrollWidth / step))
         const pageIndex = Math.min(totalPages - 1, Math.max(0, Math.round(el.scrollLeft / step)))
         pageIndexRef.current = pageIndex
-        setPageInfo({ pageIndex, totalPages })
         onProgress({ pageIndex, totalPages, percentage: (pageIndex + 1) / totalPages })
       })
       // 滚动停止后吸附到最近的完整页（手指滑动翻页后不能停在半页）
       clearTimeout(snapTimer)
-      snapTimer = setTimeout(() => {
-        const target = Math.round(el.scrollLeft / step) * step
-        if (Math.abs(target - el.scrollLeft) > 1) el.scrollTo({ left: target, behavior: 'smooth' })
-      }, 200)
+      snapTimer = setTimeout(settle, 200)
     }
-    const onScrollEnd = () => {
+    // 吸附：有程序化翻页目标就把它走完，否则吸附到离指尖最近的整页。
+    // 每次滚动都会重排 200ms 定时器，所以动画途中不会提前触发；
+    // 即便触发了，也是朝着目标页继续走，不会反向拉回。
+    const settle = () => {
       clearTimeout(snapTimer)
-      const target = Math.round(el.scrollLeft / step) * step
-      if (Math.abs(target - el.scrollLeft) > 1) el.scrollTo({ left: target, behavior: 'smooth' })
+      const totalPages = Math.max(1, Math.round(el.scrollWidth / step))
+      const intended = navTargetRef.current
+      const page =
+        intended != null
+          ? Math.min(Math.max(intended, 0), totalPages - 1)
+          : Math.min(totalPages - 1, Math.max(0, Math.round(el.scrollLeft / step)))
+      const target = page * step
+      if (Math.abs(target - el.scrollLeft) > 1) el.scrollTo({ left: target, behavior: scrollBehavior() })
+      else if (intended != null) navTargetRef.current = null
     }
+    const onScrollEnd = () => settle()
     el.addEventListener('scroll', onScroll, { passive: true })
     el.addEventListener('scrollend', onScrollEnd)
     return () => {
@@ -105,10 +119,13 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
       const move = (delta) => {
         const el = colsRef.current
         if (!el) return
-        el.scrollTo({
-          left: Math.max(0, (pageIndexRef.current + delta) * (colWidth + GAP)),
-          behavior: 'smooth',
-        })
+        const step = colWidth + GAP
+        const totalPages = Math.max(1, Math.round(el.scrollWidth / step))
+        // 以「上一个目标页」为基准而不是滚动位置：连点时不会因为动画未完成而原地踏步
+        const base = navTargetRef.current ?? pageIndexRef.current
+        const page = Math.min(Math.max(base + delta, 0), totalPages - 1)
+        navTargetRef.current = page
+        el.scrollTo({ left: page * step, behavior: scrollBehavior() })
       }
       return {
         next: () => move(1),
@@ -116,6 +133,7 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
         goToPercent: (p) => {
           const el = colsRef.current
           if (!el) return
+          navTargetRef.current = null // 瞬时跳转，不走平滑动画
           const step = colWidth + GAP
           const totalPages = Math.max(1, Math.round(el.scrollWidth / step))
           // 先算目标页再对齐到列宽步长，保证落在完整页
@@ -149,11 +167,6 @@ export default function TxtRenderer({ ref, book, progress, onProgress, fontSize 
           {text}
         </div>
       </div>
-      {pageInfo.totalPages > 0 && (
-        <div className="txt-page-hint">
-          {pageInfo.pageIndex + 1} / {pageInfo.totalPages}
-        </div>
-      )}
     </div>
   )
 }

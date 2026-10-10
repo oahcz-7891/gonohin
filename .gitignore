@@ -25,3 +25,14 @@ dist-ssr
 
 # 环境配置残留（含凭据信息，勿提交）
 er.name
+.pi
+.gitignore
+scripts/safety-gate.test.mjs
+.gitignore
+archive
+UI_REDESIGN_PLAN_TAI.md
+UI_REDESIGN_TAI_CHANGELOG.md
+index.html
+CONTEXT.md
+index.html
+index.html

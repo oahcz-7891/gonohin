@@ -1,43 +1,141 @@
 /* 全局样式：变量、书架、阅读器壳、通用控件 */
 
+/* 帯 —— 粗线条 + 藏青实色带。深色是默认调色板（DEFAULT_SETTINGS.theme = 'dark'）。
+   重音拆成两个 token：--primary 只做实块底，--primary-bright 做深底上的前景重音。
+   藏青当文字色 on #131313 只有 2.94:1，两者不能混用。见 UI_REDESIGN_PLAN_TAI.md §2.3 */
 :root {
-  color-scheme: light;
-  --bg: #f2e8d5; /* 羊皮纸背景 */
-  --bg-elev: #fbf3e3; /* 卡片 / 顶栏 */
-  --paper: #f7eeda; /* 阅读纸面 */
-  --fg: #4a3826;
-  --fg-muted: #8c795c;
-  --border: #ddcba9;
-  --primary: #9a6b3f;
-  --primary-hover: #7f5530;
-  --danger: #b3493a;
-  --ok: #2e7d32;
-  --radius: 12px;
-  --shadow: 0 2px 10px rgba(90, 65, 35, 0.1);
-  --reading-font: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', 'Songti SC', serif;
+  color-scheme: dark;
+
+  /* 底与面 */
+  --bg: #131313; /* 页面底 */
+  --bg-elev: #1c1c1c; /* 浮层 / 状态栏 */
+  --bg-3: #262626; /* 输入框 / 次按钮 / 轨道底 / 封面灰面 */
+  --paper: #161616; /* 阅读纸面（比 bg 略提；MOBI/EPUB 的 iframe 注入的就是它） */
+
+  /* 字 */
+  --fg: #ededed;
+  --fg-strong: #f7f7f7; /* 标题 / 书名，比 --fg 再亮一档 */
+  --fg-muted: #9a9a9a;
+  --border: #3a3a3a;
+  --cover-spine-l: 34%; /* 无封面书的书脊色条亮度（亮色主题要提亮） */
+
+  /* 重音 */
+  --primary: #2f5fa8; /* 实块底：顶栏 / 继续卡 / 主按钮 / 选中 */
+  --primary-hover: #3d74c4;
+  --on-primary: #ffffff; /* 实块上的字（白 on #2f5fa8 = 6.32:1） */
+  --primary-bright: #6b9bd8; /* 深底上的前景重音：hover 文字 / 描边 / 进度条 / focus（on #131313 = 6.46:1） */
+  --danger: #ff6b5a;
+  --ok: #5fd39a;
+
+  /* 形状：同心圆角，内圆角 = 外圆角 − 内边距 */
+  --r: 10px; /* 控件 */
+  --r-lg: 14px; /* 容器 / 卡片 / 封面 / 弹窗 */
+  --r-in: 5px; /* 容器内的小元素：格式标签 / 删除钮 */
+
+  /* 线宽：最小可见线是 2px，不再出现 1px */
+  --w-frame: 2px;
+  --w-rule: 3px;
+  --w-bar: 6px;
+
+  /* 顶栏工具行的底色与前景。默认（桌面 / 无刘海）整条是蓝带；
+     沉浸模式（html[data-immersive='1']）下蓝只做顶部一条帽，工具行落到页面底色上 */
+  --bar-bg: var(--primary);
+  --bar-fg: #ffffff;
+  --bar-hover: rgba(0, 0, 0, 0.18);
+  --bar-on-bg: rgba(0, 0, 0, 0.28);
+  --bar-on-fg: #ffffff;
+
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+  /* 字族：展示字明朝，界面字黑体 */
+  --mincho: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', 'Songti SC', serif;
+  --gothic: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --reading-font: var(--mincho);
+
   /* 翻页热区宽度 = 文字左右留白（热区只落在留白上，不盖住正文） */
   --page-zone: clamp(52px, 15%, 96px);
-  /* iOS 26 液态玻璃材质（弹窗） */
-  --glass-bg: rgba(251, 243, 227, 0.72);
-  --glass-highlight: rgba(255, 255, 255, 0.55);
+  /* 实际翻页热区宽度。默认跟随 --page-zone。若某个渲染器的正文左右留白与
+     --page-zone 不一致（目前只有 MOBI：列 padding 固定 28px，见 MobiRenderer 的 padX），
+     Reader 会把它实测的文字内缩写到 --nav-zone 上，热区就收窄到「刚好停在文字边缘」。
+     变量必须挂在 .reader-body 上：.page-nav 与渲染器是兄弟节点，只能从共同祖先继承。 */
+  /* 翻页热区按下时的泛光（按方向在 .page-nav 里拼成渐变） */
+  --tap-glow: rgba(47, 95, 168, 0.22);
+  /* iOS 独立窗口（加到主屏幕）下内容会铺到状态栏/灵动岛下面
+     （index.html 里 viewport-fit=cover + apple-mobile-web-app-status-bar-style=black-translucent）。
+     iOS 26 在顶部盖一层 Liquid Glass 材质（磨砂模糊 + 带衰减的压暗），它绘制在我们之上、CSS 盖不掉。
+     实测结论（逐像素）：
+       · 材质到 css ≈ 90px 才衰减完，安全区只有 59px；
+       · 被它盖住的大面积纯色几乎看不出（模糊一个均匀色域还是它自己）；
+       · 被它盖住的**文字**会发糊 —— 同一行的标题白字峰值只有 489/765（正文与未被盖时都是满的）。
+     所以把顶栏拆成两个独立高度：
+       --cap-h    顶部蓝帽：蓝从 0 铺到这里（用户画线要求的位置），下面是工具行底色；
+       --safe-top 工具行距屏幕顶部多远：越过材质区（≈90px）文字才不糊。
+                  1.45 是逐像素实测出的「完全不糊」位置；用户要求工具行再贴顶，
+                  权衡后取 1.15（59 × 1.15 ≈ 68px）——只踩进材质衰减尾巴，
+                  白字略软但可读。别再往下减：1.0（59px）整行落在材质主体里，明显发糊。
+     两者互不相干：蓝帽可以很短，工具行仍然待在材质下方。
+     用乘法而不是加法算 --safe-top，是为了让无刘海设备（env() = 0）自动塔回 8px。 */
+  --cap-h: 40px;
+  --top-scale: 1.15;
+  --safe-top: max(8px, calc(env(safe-area-inset-top) * var(--top-scale)));
+
+  /* 底部状态栏（页码 + 进度条的「翻页条」）距屏幕底边的距离。
+     iOS 26/27 上报的 env(safe-area-inset-bottom) 比设备实际需要的大，状态栏被顶得
+     离底边太远（用户反馈「翻页条太靠上」），所以同样用缩放而不是直接用原始值：
+     --bottom-scale 就是「底部间隙的倍数」，1 = 原样、0.25 = 间隙压到四分之一。
+     想再往下调就减小它，想往上回就加大它。
+     下限取 6px 而不是 0：页码与滑块要留一丝与屏幕边的隔离，贴死看着像被裁掉；
+     上限 20px 兜住异常上报（有机器报 60~90px，0.25 倍后仍有 15~22px，
+     不封顶就会重新出现「翻页条太靠上」）。中间段仍用乘法，好让无手势条/无刘海
+     的设备（env() = 0）自动落到下限，不需要额外的媒体查询。 */
+  --bottom-scale: 0.25;
+  --safe-bottom: clamp(6px, calc(env(safe-area-inset-bottom) * var(--bottom-scale)), 20px);
+
+  /* 阅读器 chrome 的高度基准。正文据此避开顶栏/状态栏（见 .renderer-container），
+     字号浮层的弹出位置也读它。两者都是实测值，改 chrome 内边距/按钮尺寸时要同步 */
+  --chrome-h: calc(46px + var(--safe-top)); /* 顶栏：安全区 + 图标 38 + 下内边距 8 */
+  --statusbar-h: 40px; /* 状态栏：8 + 滑块 22 + 8 + 2（上边线），手机端另算 */
+  /* iOS 26 液态玻璃材质（弹窗 / 操作条） */
+  --glass-bg: rgba(28, 31, 36, 0.82);
+  --glass-highlight: rgba(255, 255, 255, 0.09);
+  --glass-blur: blur(22px) saturate(1.6);
+  --pdf-bg: #3c3e42; /* PDF 衬底：页面本身是白的，中灰偏暗才衬得出页缘又不刺眼 */
 }
 
-/* 深色模式：暖黑羊皮纸 */
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #1c1712;
-  --bg-elev: #2a231b;
-  --paper: #241d16;
-  --fg: #eadbc0;
-  --fg-muted: #a89478;
-  --border: rgba(255, 255, 255, 0.1);
-  --primary: #c89b6a;
-  --primary-hover: #d9ae7c;
-  --danger: #ff7a66;
-  --ok: #6fcf97;
-  --shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
-  --glass-bg: rgba(42, 35, 27, 0.72);
-  --glass-highlight: rgba(255, 255, 255, 0.14);
+/* 亮色模式：纸白。藏青在白底上要压深（#1f4a8c on #f2f1ee = 7.69:1），
+   此时实块底与前景重音同值 */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f2f1ee;
+  --bg-elev: #ffffff;
+  --bg-3: #e6e4df;
+  --paper: #fbfaf8;
+  --fg: #1a1a1a;
+  --fg-strong: #000000;
+  --fg-muted: #6b6b6b;
+  --border: #c9c6c0;
+  --cover-spine-l: 60%;
+  --primary: #1f4a8c;
+  --primary-hover: #2b5b8c;
+  --on-primary: #ffffff;
+  --primary-bright: #1f4a8c;
+  --danger: #c0392b;
+  --ok: #1f7a4d;
+  --shadow: 0 4px 16px rgba(27, 26, 23, 0.12);
+  --tap-glow: rgba(31, 74, 140, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-highlight: rgba(255, 255, 255, 0.6);
+  --pdf-bg: #55575a;
+}
+
+/* 沉浸（有安全区，即 iOS 独立窗口 / 刘海机）：
+   蓝只铺到 --cap-h，工具行改用页面底色 + 主题前景色（深色主题就是白字） */
+html[data-immersive='1'] {
+  --bar-bg: var(--bg);
+  --bar-fg: var(--fg-strong);
+  --bar-hover: rgba(255, 255, 255, 0.1);
+  --bar-on-bg: var(--primary);
+  --bar-on-fg: var(--on-primary);
 }
 
 * {
@@ -51,10 +149,20 @@ body,
   margin: 0;
 }
 
+/* 根滚动容器：不回弹、不触发 iOS 下拉刷新。
+   写在 html 上是因为 Safari 不保证 body 上的值会传播到视口（该属性 iOS 16+ 才支持）。
+   内层滚动容器的边界回弹/滚动链由各自的 overscroll-behavior: contain 拦截，见下方各渲染器。 */
+html,
+body {
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans', system-ui, sans-serif;
+  font-family: var(--gothic);
+  font-size: 15px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -64,38 +172,133 @@ body {
 
 /* ---------- 通用按钮 ---------- */
 .btn {
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elev);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 22px;
+  border: none;
+  border-radius: var(--r);
+  background: var(--bg-3);
   color: var(--fg);
-  font-size: 14px;
+  font-family: var(--gothic);
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
 }
 .btn:hover:not(:disabled) {
-  border-color: var(--primary);
-  color: var(--primary);
+  color: var(--primary-bright);
 }
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 .btn-primary {
   background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
-  color: #fff;
+  color: var(--on-primary);
 }
+/* 次按钮：透明底 + 2px 边。目前只有翻译弹窗的「关闭」用它 */
 .btn-ghost {
-  border-color: transparent;
   background: transparent;
+  border: var(--w-frame) solid var(--border);
 }
 
-/* ---------- 顶栏 ---------- */
+/* ---------- 图标按钮（阅读器顶栏 / 书架顶栏共用） ---------- */
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--fg);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  /* 同 .page-nav：免掉 iOS 的 ~350ms 点击延迟与双击缩放抢手势 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover {
+  color: var(--primary-bright);
+}
+/* 图标按钮里的内联 SVG：显式定尺寸（与原来的字符图标视觉等大），别让 viewBox 撑满按钮 */
+.icon-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+/* 选中态：实块（蓝底白字），不再是「金边金字」 */
+.icon-btn.on {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* 顶栏字号浮层：挂在 .reader-shell 根部（不能放 topbar 里——topbar 的 backdrop-filter
+   会为 fixed 后代建立 containing block，遮罩会被裁成 topbar 自己的盒子）。
+   定位贴着顶栏下缘、右缘，视觉上从「A」按钮下方弹出 */
+.font-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: transparent;
+}
+.font-menu {
+  position: absolute;
+  top: calc(var(--chrome-h) + 8px);
+  right: 12px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: var(--w-frame) solid var(--border);
+  border-radius: var(--r-lg);
+  /* 实色而非玻璃：字号浮层落在蓝色顶栏上，玻璃会把蓝透上来，对比度不稳 */
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  animation: font-menu-in 0.18s ease;
+}
+@keyframes font-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* 步进点：越往右档位越大（点的高度递增），当前档位右侧全部亮金 */
+.font-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.font-dots i {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border);
+}
+.font-dots i.on {
+  background: var(--primary-bright);
+}
+
+/* ---------- Top bar ---------- */
+/* 顶栏 = 帯：一级信息做成整条实色横带，不画边框（白 on #2f5fa8 = 6.32:1） */
 .topbar {
   position: sticky;
   top: 0;
@@ -103,34 +306,57 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-elev);
+  gap: 10px;
+  /* 顶部让出灵动岛/状态栏，横屏时让出左右刘海。
+     背景是硬阶渐变：0 → --cap-h 是蓝帽，之后是工具行底色。
+     非沉浸时 --bar-bg 就是 --primary → 渐变退化成纯色，整条仍是蓝的 */
+  padding: var(--safe-top) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  background: linear-gradient(to bottom, var(--primary) var(--cap-h), var(--bar-bg) var(--cap-h));
+  color: var(--bar-fg);
 }
 .topbar-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--bar-fg);
 }
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .topbar-hint {
-  color: var(--fg-muted);
+  color: var(--bar-fg);
+  opacity: 0.8;
   font-size: 13px;
+  font-weight: 600;
+}
+/* 顶栏图标：颜色跟 --bar-fg 走；选中态的叠底色分蓝带 / 深色工具行两种（见 --bar-* token） */
+.topbar .icon-btn,
+.reader-topbar .icon-btn {
+  color: var(--bar-fg);
+}
+.topbar .icon-btn:hover,
+.reader-topbar .icon-btn:hover {
+  color: var(--bar-fg);
+  background: var(--bar-hover);
+}
+.topbar .icon-btn.on,
+.reader-topbar .icon-btn.on {
+  background: var(--bar-on-bg);
+  color: var(--bar-on-fg);
 }
 
 /* ---------- 通知条 ---------- */
 .notice {
   position: fixed;
-  top: 64px;
+  top: calc(var(--chrome-h) + 14px);
   left: 50%;
   transform: translateX(-50%);
   padding: 10px 20px;
-  border-radius: var(--radius);
+  border-radius: var(--r);
   font-size: 14px;
+  font-weight: 600;
   box-shadow: var(--shadow);
   z-index: 100;
   animation: fade-in 0.2s ease;
@@ -138,15 +364,17 @@ body {
 .notice-error {
   background: rgba(179, 73, 58, 0.12);
   color: var(--danger);
-  border: 1px solid rgba(179, 73, 58, 0.28);
+  border: var(--w-frame) solid rgba(179, 73, 58, 0.28);
 }
 .notice-info {
+  background: rgba(122, 179, 232, 0.1);
+  color: #7ab3e8;
+  border: var(--w-frame) solid rgba(122, 179, 232, 0.24);
+}
+:root[data-theme='light'] .notice-info {
   background: rgba(43, 91, 140, 0.1);
   color: #2b5b8c;
-  border: 1px solid rgba(43, 91, 140, 0.24);
-}
-:root[data-theme='dark'] .notice-info {
-  color: #7ab3e8;
+  border-color: rgba(43, 91, 140, 0.24);
 }
 @keyframes fade-in {
   from {
@@ -201,6 +429,8 @@ body {
 /* ---------- 书架 ---------- */
 .shelf {
   min-height: 100%;
+  /* 最后一行书卡不被 iPhone 底部 Home 条压住 */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .empty-state {
   display: flex;
@@ -210,13 +440,13 @@ body {
   padding: 120px 24px;
   gap: 6px;
 }
-/* 空态图标：浅灰正圆形底 + 细线线性图标（Cash App 风格） */
+/* 空态图标：圆底走变量（原来写死的浅灰在深色主题下是一块大白圆） */
 .empty-icon {
   width: 84px;
   height: 84px;
   border-radius: 50%;
-  background: #ece9e3;
-  color: #9a9389;
+  background: var(--bg-3);
+  color: var(--fg-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -228,17 +458,100 @@ body {
 }
 .empty-state p {
   margin: 0;
-  color: var(--fg-muted);
+  font-family: var(--mincho);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--fg-strong);
 }
 .empty-state .empty-hint {
+  font-family: var(--gothic);
   font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
   margin-bottom: 16px;
 }
+/* ---------- 继续阅读卡（帯） ---------- */
+/* 二级信息也做成实色块：正在读的那本书整块反白，不画任何边框。
+   是 <button> 而非 <div>：语义正确且自带键盘可达 */
+.continue-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: calc(100% - 40px);
+  margin: 20px 20px 0;
+  padding: 18px;
+  border: none;
+  border-radius: var(--r-lg);
+  background: var(--primary);
+  color: var(--on-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.continue-card-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.continue-card-body b {
+  font-family: var(--mincho);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.continue-card-body span {
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+/* 反色按钮：实块底上的浅色块（与顶栏图标同一条规则的反向版本） */
+.continue-card-go {
+  position: relative;
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 20px;
+  border-radius: var(--r);
+  background: var(--on-primary);
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
 .shelf-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 20px;
-  padding: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 18px;
+  padding: 16px 20px 24px;
+}
+
+/* ---------- 栏目标题（“全部藏書 · N 冊”） */
+.ghead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 22px 20px 0;
+  padding-bottom: 10px;
+  border-bottom: var(--w-rule) solid var(--fg-strong);
+  font-family: var(--mincho);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--fg-strong);
+}
+.ghead span {
+  font-family: var(--gothic);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
 }
 
 /* ---------- 书架卡片 ---------- */
@@ -246,125 +559,179 @@ body {
   cursor: pointer;
   user-select: none;
 }
-.book-cover {
+/* 封面壳：有封面时铺图，无封面时是「灰面 + 书脊 + 竖排明朝书名」 */
+.cv {
   position: relative;
   aspect-ratio: 3 / 4;
-  border-radius: var(--radius);
   overflow: hidden;
-  background: var(--bg-elev);
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.book-cover img {
+.cv-photo {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.cover-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  font-size: 28px;
+/* 色只落在左边 10px 粗条上：面积小，所以能饱和而不脏，书架又有层次 */
+.cv-spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  background: hsl(var(--cover-h, 220) 26% var(--cover-spine-l, 34%));
+}
+/* 竖排书名的两个坑（都在 demo 里踩过）：
+   1. 竖排下 line-height 控制的是「字与字的间距」而不是行距——继承 body 的 1.6 会让
+      7 个字的书名占 157px，被截在半个字中间，看起来像渲染坏了。
+   2. 不写 nowrap，高度不够时会折成第二列（vertical-rl 往左排），那列会叠到书脊上。 */
+.cv-vt {
+  writing-mode: vertical-rl;
+  font-family: var(--mincho);
+  font-size: 13px;
+  line-height: 1.08;
   font-weight: 700;
-  color: var(--fg-muted);
-  background: linear-gradient(160deg, #efe0c4, #e2cba6);
+  letter-spacing: 0.08em;
+  max-height: 92%;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--fg-strong);
 }
-:root[data-theme='dark'] .cover-fallback {
-  color: #d9c8a8;
-  background: linear-gradient(160deg, #3a3127, #2a231b);
+/* 长书名降一档：字号收小、字距归零，尽量多留几个字在封面上 */
+.cv-vt-dense {
+  font-size: 11px;
+  letter-spacing: 0.02em;
 }
-.book-delete {
+/* 格式角标：格式从「居中大字」降成角上一个小标签 */
+.fmt {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: var(--r-in);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+}
+/* 删除钮：26px 方角。触屏设备没有 hover，隐藏式交互不可用，所以常显 */
+.kill {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
+  border-radius: var(--r-in);
+  background: rgba(0, 0, 0, 0.62);
   color: #fff;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
-  /* 常显（半透明），悬停变清晰——触屏设备没有 hover，隐藏式交互不可用 */
-  opacity: 0.65;
-  transition: opacity 0.15s;
-}
-.book-card:hover .book-delete {
-  opacity: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 @media (hover: none) {
-  .book-delete {
-    width: 30px;
-    height: 30px;
-    font-size: 16px;
-    opacity: 0.85;
+  .kill {
+    width: 32px;
+    height: 32px;
   }
 }
 .book-title {
-  margin-top: 8px;
+  margin-top: 9px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
+  color: var(--fg-strong);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .book-meta {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--fg-muted);
-  margin-top: 2px;
+  margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .book-progress {
-  margin-top: 6px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--border);
+  margin-top: 8px;
+  height: var(--w-bar);
+  border-radius: min(var(--r-in), 3px);
+  background: var(--bg-3);
   overflow: hidden;
 }
 .book-progress-bar {
   height: 100%;
-  background: var(--primary);
-  border-radius: 2px;
+  background: var(--primary-bright);
+  border-radius: inherit;
 }
 
 /* ---------- 阅读器壳 ---------- */
+/* 沉浸模式：顶栏 / 状态栏是**覆盖式浮层**而非占位段。
+   若用条件渲染隐藏它们，.reader-body 高度会变 → TXT 的 CSS columns 重新分页、
+   MOBI 的 ResizeObserver 重算 → 正文跳位。所以两者绝对定位、正文恒定 inset:0，
+   显隐只做位移+淡出，不触发任何重排。 */
 .reader-shell {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100%;
+  overflow: hidden;
 }
+.reader-body {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* 纸面铺满整屏：正文容器被 chrome 的高度内缩后，顶栏/状态栏后面不至于露出底色 */
+  background: var(--paper);
+}
+/* 顶栏 = 帯（与书架顶栏同一条规则）：实色横带，无边框，白字。
+   注意：这里的绝对定位与 transition 不能动——顶栏一旦参与布局，
+   TXT 的 CSS columns 会重新分页、MOBI 的 ResizeObserver 会重算，正文会跳位 */
 .reader-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-elev);
+  gap: 6px;
+  /* 同 .topbar：独立窗口下不让出安全区，标题与返回键会被灵动岛压住；
+     背景同样是「蓝帽 + 工具行底色」两个高度（见 --cap-h / --safe-top） */
+  padding: var(--safe-top) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  background: linear-gradient(to bottom, var(--primary) var(--cap-h), var(--bar-bg) var(--cap-h));
+  color: var(--bar-fg);
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  /* 字号浮层从 topbar 下缘弹出，不能被裁剪 */
+  overflow: visible;
 }
 .reader-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--bar-fg);
   flex: 1;
+  min-width: 0;
+  padding-left: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.reader-body {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-}
 
 /* 渲染器统一容器 */
+/* 正文容器统一避开顶栏与状态栏：这两条是覆盖式浮层（见 .reader-shell 注释），
+   不为它们让位的话，实色顶栏会把第一行正文整行盖住（之前是半透明玻璃，勉强透得出字）。
+   这是唯一改动正文盒子的地方——三种渲染器的分页/位移都读它 */
 .renderer-container {
   position: absolute;
-  inset: 0;
+  inset: var(--chrome-h) 0 var(--statusbar-h);
   overflow: hidden;
   font-family: var(--reading-font);
   background: var(--paper);
@@ -381,18 +748,30 @@ body {
 /* 翻页按钮 */
 .page-nav {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: var(--page-zone);
-  min-width: var(--page-zone);
+  /* 只在正文区域内热区：顶栏/状态栏停在上面时不会误触翻页 */
+  top: var(--chrome-h);
+  bottom: var(--statusbar-h);
+  /* 默认 --page-zone；留白不同的渲染器会把 --nav-zone 写到 .reader-body 上 */
+  width: var(--nav-zone, var(--page-zone));
+  min-width: var(--nav-zone, var(--page-zone));
   border: none;
   background: transparent;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s;
-  font-size: 0; /* 隐藏箭头文字，仅保留点击热区（触屏/划词模式下靠两侧点击翻页） */
-  color: var(--fg-muted);
+  transition: opacity 0.15s, background 0.15s;
+  /* 箭头常驻可见（触屏没有 hover，纯隐形热区用户不知道能点哪）；整体默认透明，按下才浮现 */
+  font-size: 20px;
+  color: var(--primary-bright);
   z-index: 5;
+  /* iOS 的两个坑，桌面/安卓浏览器上看不出来：
+     1. 页面可缩放（viewport 没写 maximum-scale）时，Safari 会把点击挂起 ~350ms
+        等「是不是双击缩放」——这就是手机上点下去没反应的直接来源。
+        touch-action: manipulation 直接告诉浏览器这颗按钮没有双击手势，点击立即派发。
+     2. 快速连点会被吃成双击缩放：也只走一页（或干脆放大页面）。
+     user-select: none：避免按下时在正文里起一个文字选区。 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 /* 只有指针碰到箭头本身时才显示；触屏则按下时显示、松开后隐藏 */
 .page-nav:focus-visible {
@@ -408,38 +787,78 @@ body {
     opacity: 1;
   }
 }
+/* 按下时朝内侧泛一层藏青，明确「这一侧是翻页区」 */
 .page-nav-prev {
   left: 0;
+}
+.page-nav-prev:active,
+.page-nav-prev:focus-visible {
+  background: linear-gradient(to right, var(--tap-glow), transparent);
 }
 .page-nav-next {
   right: 0;
 }
-/* 划词模式下收窄翻页热区，只占边缘留白，避免挡住最左/最右的文字 */
+.page-nav-next:active,
+.page-nav-next:focus-visible {
+  background: linear-gradient(to left, var(--tap-glow), transparent);
+}
+/* 划词模式下收窄翻页热区，只占边缘留白，避免挡住最左/最右的文字。
+   这里不再常显半透明箭头——沉浸模式要求正文区域干净，按下时的泛光已足够提示。
+   44px 是 Apple 的最小触摸目标；但绝不能超过实际文字留白（MOBI 只有 28px），
+   否则又会压到正文上——所以再和 --nav-zone 取小。
+   原来写 24px，实测在 390px 屏上从边缘向内 40px 处点击无反应。 */
 .page-nav-select-mode {
-  width: 24px;
-  min-width: 24px;
-  opacity: 0.5;
+  width: min(44px, var(--nav-zone, 44px));
+  min-width: min(44px, var(--nav-zone, 44px));
+}
+/* 诊断策略④：热区完全不吃浏览器手势（不再被判成滚动/停滚动） */
+.page-nav-notouch {
+  touch-action: none;
 }
 
-/* 底部状态栏 */
+/* 底部状态栏：与顶栏同为覆盖式浮层（见 .reader-shell 注释）。
+   不做帯——上下两条实色带会把正文夹成三明治。
+   底色不用 --bg-elev 实色面板：手机上视口下面还有一条浏览器底带
+   （Safari 底栏 / 手势条区域，取 <meta name="theme-color">，见 lib/theme.js 的 syncThemeColor），
+   面板落到屏幕最底部时，实色 + 2px 上边线会在那里留一道硬边（用户反馈突兀）。
+   改成「纸面 → --bg」的幕布渐变：纸面化进黑里，末端与底带同色（都是 --bg）→ 没有接缝。
+   上边线改成透明而非删掉：--statusbar-h 是正文分页的高度基准，
+   高度不能因为去线而变 2px；渐变头部本来就是透明（露纸面），这 2px 落在里面看不出来。 */
 .reader-statusbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-elev);
-  font-size: 12px;
-  color: var(--fg-muted);
+  /* 横屏时让出左右刘海（手机端媒体查询会覆写上下内边距） */
+  padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  border-top: var(--w-frame) solid transparent;
+  /* border-box：渐变图默认只铺 padding box，边框那 2px 会被 background-repeat
+     用渐变**末端**（= --bg）补齐，正好在栏顶画回一道细线。铺到 border box 就没有这段。 */
+  background: linear-gradient(to bottom, transparent, var(--bg) 50%) border-box;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg);
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
 /* 手机端：状态栏整体上移，并适配 iPhone 底部安全区（Home 条） */
 @media (max-width: 640px) {
+  /* 状态栏在手机端更高（padding-top 12 + 底部安全区），正文让位的量要跟着变。
+     底部安全区走 --safe-bottom（已按 --bottom-scale 缩放并 clamp 到 6~20px），两处必须同源，
+     否则正文让位的量与实际栏高对不上，正文会多露/少露一截。 */
+  .reader-shell {
+    /* 12(上内边距) + 22(滑块) + 2(上边线)，再加底部安全区 */
+    --statusbar-h: calc(36px + var(--safe-bottom));
+  }
   .reader-statusbar {
     padding-top: 12px;
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding-bottom: var(--safe-bottom);
   }
 }
-/* 进度条：可拖动跳页的 range 滑块（填充色由 JSX 内联渐变控制） */
+/* 进度条：可拖动跳页的 range 滑块（填充比例由 JSX 经 --pct 传来） */
 .reader-statusbar .progress-track {
   flex: 1;
   height: 22px; /* 扩大点击/触摸热区 */
@@ -447,14 +866,14 @@ body {
   padding: 0;
   -webkit-appearance: none;
   appearance: none;
-  background: transparent;
+  background-color: transparent;
   cursor: pointer;
-  border-radius: 2px;
 }
+/* 填充画在 track 伪元素上（不是 input 本身），才是 6px 粗线；--pct 从 input 继承下来 */
 .reader-statusbar .progress-track::-webkit-slider-runnable-track {
-  height: 3px;
-  border-radius: 2px;
-  background: transparent; /* 透出 input 内联的渐变（填充色+轨道色） */
+  height: var(--w-bar);
+  border-radius: min(var(--r-in), 3px);
+  background: linear-gradient(to right, var(--primary-bright) var(--pct, 0%), var(--border) var(--pct, 0%));
 }
 .reader-statusbar .progress-track::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -464,35 +883,15 @@ body {
   opacity: 0;
 }
 .reader-statusbar .progress-track::-moz-range-track {
-  height: 3px;
-  border-radius: 2px;
-  background: transparent;
+  height: var(--w-bar);
+  border-radius: min(var(--r-in), 3px);
+  background: linear-gradient(to right, var(--primary-bright) var(--pct, 0%), var(--border) var(--pct, 0%));
 }
 .reader-statusbar .progress-track::-moz-range-thumb {
   width: 23px; /* 透明但可抓握：与 webkit 拇指保持一致 */
   height: 22px;
   opacity: 0;
 }
-.font-size-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.font-size-controls button {
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-elev);
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-}
-.font-size-controls button:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
 /* 加载 / 错误占位 */
 .placeholder {
   display: flex;
@@ -523,6 +922,7 @@ body {
   inset: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior: contain; /* 首/末页再拉时不把回弹传给根容器 */
   padding: 36px var(--page-zone);
   scrollbar-width: none; /* 隐藏滚动条，靠翻页按钮移动 */
 }
@@ -537,17 +937,6 @@ body {
   line-height: 1.9;
   color: var(--fg);
 }
-.txt-page-hint {
-  position: absolute;
-  right: 16px;
-  bottom: 12px;
-  font-size: 12px;
-  color: var(--fg-muted);
-  pointer-events: none;
-}
-.txt-page-hint.tok-pending {
-  bottom: 30px;
-}
 
 /* ---------- MOBI 渲染器 ---------- */
 .mobi-frame {
@@ -559,9 +948,16 @@ body {
   background: var(--paper);
 }
 
+/* ---------- EPUB 渲染器（epubjs） ---------- */
+/* epubjs 自建的外层容器。真正翻页的滚动发生在 iframe 的 documentElement 上，
+   那里的 overscroll-behavior 由 EpubRenderer 经 themes 注入（父页面选不中 iframe 内文档）。 */
+.epub-container {
+  overscroll-behavior: contain;
+}
+
 /* ---------- PDF 渲染器 ---------- */
 .pdf-view {
-  background: #525659; /* 深色底，PDF 页面浮在上面 */
+  background: var(--pdf-bg); /* PDF 页面本身是白的，衬底走主题变量 */
 }
 .pdf-wrap {
   position: relative;
@@ -571,6 +967,7 @@ body {
   width: 100%;
   height: 100%;
   overflow: auto;
+  overscroll-behavior: contain; /* PDF 平移拉到边界时不把回弹传给根容器 */
   padding: 24px 0;
 }
 .pdf-wrap .textLayer {
@@ -605,19 +1002,48 @@ body {
   max-height: calc(100vh - 16px);
   /* iOS 26 液态玻璃：半透明毛玻璃 + 高光边缘 */
   background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
-  border: 1px solid var(--border);
-  border-radius: 20px;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: var(--w-frame) solid var(--border);
+  border-radius: var(--r-lg);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 var(--glass-highlight),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    0 12px 36px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 var(--glass-highlight);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   animation: glass-in 0.4s cubic-bezier(0.22, 1.3, 0.36, 1);
+}
+.trans-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+/* 普通 / 深度 分段控件（当前档位高亮，标签常驻） */
+.trans-mode {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: var(--w-frame) solid var(--border);
+  border-radius: 999px;
+}
+.trans-mode button {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.trans-mode button.on {
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
 }
 .trans-source {
   font-size: 13px;
@@ -627,7 +1053,7 @@ body {
   max-height: 120px;
   overflow-y: auto;
   line-height: 1.6;
-  border-bottom: 1px dashed var(--border);
+  border-bottom: var(--w-frame) dashed var(--border);
   padding-bottom: 8px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -654,8 +1080,9 @@ body {
   gap: 10px;
 }
 .trans-actions .btn {
-  padding: 7px 14px;
-  font-size: 14px;
+  min-height: 38px;
+  padding: 0 16px;
+  font-size: 15px;
 }
 .trans-error {
   font-size: 13px;
@@ -691,23 +1118,27 @@ body {
   padding: 6px;
   border-radius: 999px;
   background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
-  border: 1px solid var(--border);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: var(--w-frame) solid var(--border);
   box-shadow:
-    0 6px 20px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 var(--glass-highlight),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    0 6px 20px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 var(--glass-highlight);
   animation: glass-in 0.4s cubic-bezier(0.22, 1.3, 0.36, 1);
 }
 .sel-actions button {
   border: none;
   border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 14px;
-  font-weight: 600;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  /* 不折行：这条是 inline-flex，会被「innerWidth - 300」的定位钳位压窄，
+     一旦允许折行，4 个按钮会全部折成两行 */
+  white-space: nowrap;
+  flex: none;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
   cursor: pointer;
 }
 .sel-actions button:active {
@@ -718,8 +1149,9 @@ body {
   cursor: not-allowed;
 }
 .sel-actions .sel-actions-close {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
   padding: 0;
   border-radius: 50%;
   background: transparent;
@@ -739,7 +1171,7 @@ body {
   max-width: 520px;
   margin: 0 auto;
   /* 底部多留一点空间：滚到底时也能完整显示「测试连接」结果 */
-  padding: 24px 24px 64px;
+  padding: 24px 24px calc(64px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -751,22 +1183,25 @@ body {
 }
 .settings-group label {
   font-size: 13px;
+  font-weight: 700;
   color: var(--fg-muted);
 }
 .settings-group input,
 .settings-group select {
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 14px;
-  background: var(--bg-elev);
+  min-height: 42px;
+  padding: 0 14px;
+  border: var(--w-frame) solid var(--border);
+  border-radius: var(--r);
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--bg-3);
   color: var(--fg);
 }
 /* 自定义下拉箭头：原生箭头无法移动，用 appearance:none + 背景图，并把箭头往左靠 */
 .settings-group select {
   appearance: none;
   -webkit-appearance: none;
-  background-color: var(--bg-elev);
+  background-color: var(--bg-3);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center; /* 箭头距右缘 14px，比默认更靠左 */
@@ -776,12 +1211,31 @@ body {
 .settings-group input:focus,
 .settings-group select:focus {
   outline: none;
-  border-color: var(--primary);
+  border-color: var(--primary-bright);
 }
 .settings-hint {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--fg-muted);
   line-height: 1.6;
+}
+/* 诊断开关那种一行复选（不再是设置表单的竖排 label + 控件） */
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+  cursor: pointer;
+}
+.settings-toggle input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--primary);
 }
 /* 可清除输入框：模型 / API Key 的 ✕ 按钮 */
 .input-clear {
@@ -789,15 +1243,15 @@ body {
 }
 .input-clear input {
   width: 100%;
-  padding-right: 34px;
+  padding-right: 40px;
 }
 .input-clear-btn {
   position: absolute;
   top: 50%;
-  right: 6px;
+  right: 8px;
   transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -805,7 +1259,7 @@ body {
   border: none;
   background: transparent;
   color: var(--fg-muted);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1;
   border-radius: 50%;
   cursor: pointer;
@@ -837,4 +1291,24 @@ body {
 }
 .settings-test-result.fail {
   color: var(--danger);
+}
+
+/* ---------- 质量底线 ---------- */
+/* 可见的键盘焦点：浏览器默认光环在深底/蓝底上几乎看不见，统一成 3px 重音描边。
+   注意这组放最后：要能盖住前面 .settings-group input:focus 的 outline: none */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.kill:focus-visible,
+.continue-card:focus-visible,
+.sel-actions button:focus-visible,
+.trans-mode button:focus-visible,
+.settings-group input:focus-visible,
+.settings-group select:focus-visible {
+  outline: var(--w-rule) solid var(--primary-bright);
+  outline-offset: 2px;
+}
+/* 蓝色顶栏上的焦点环必须转白，否则蓝环叠在蓝底上不可见 */
+.topbar .icon-btn:focus-visible,
+.reader-topbar .icon-btn:focus-visible {
+  outline-color: #fff;
 }

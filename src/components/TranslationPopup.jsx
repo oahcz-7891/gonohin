@@ -109,6 +109,20 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
         onContextMenu={(e) => e.preventDefault()}
       />
       <div className={closing ? 'trans-popup exit' : 'trans-popup'} ref={popupRef} style={pos}>
+        {/* 模式切换做成常驻分段控件：原来是一个会变文字的按钮（“深度翻译” ⇄ “普通翻译”），
+            当前态与目标态分不清。两个标签常驻、高亮当前档，语义明确。
+            点当前档位不触发重译（setMode 同值 → React 不会重跑 effect） */}
+        <div className="trans-head">
+          <div className="trans-mode" role="group" aria-label="翻译模式">
+            <button type="button" className={mode === 'normal' ? 'on' : ''} onClick={() => setMode('normal')}>
+              普通
+            </button>
+            <button type="button" className={mode === 'deep' ? 'on' : ''} onClick={() => setMode('deep')}>
+              深度
+            </button>
+          </div>
+        </div>
+
         <div className="trans-source" title="原文">
           {source}
           {source !== text && <span style={{ color: 'var(--fg-muted)' }}>（已截取前 {MAX_SOURCE_LEN} 字）</span>}
@@ -133,9 +147,6 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
 
         <div className="trans-actions">
           <div>
-            <button className="btn" onClick={() => setMode(mode === 'deep' ? 'normal' : 'deep')}>
-              {mode === 'deep' ? '普通翻译' : '深度翻译'}
-            </button>
             <button className="btn" onClick={() => run(true)} disabled={loading}>
               重新翻译
             </button>

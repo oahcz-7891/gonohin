@@ -4,8 +4,7 @@
 
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import ePub from 'epubjs'
-import { getSettings } from '../../lib/storage'
-import { resolveTheme } from '../../lib/theme'
+import { paperColors } from '../../lib/theme'
 import { CTX_MAX, CTX_RADIUS } from '../../lib/constants'
 
 // EPUB 内容页在 iframe 里，用其 document 取上下文（注意 selectNode 用 contentWindow 的 Range）
@@ -30,11 +29,27 @@ function extractEpubContext(range, doc) {
   }
 }
 
-export default function EpubRenderer({ ref, book, progress, fontSize, onProgress, onSelection }) {
+export default function EpubRenderer({ ref, book, progress, fontSize, theme, onProgress, onSelection }) {
   const containerRef = useRef(null)
   const renditionRef = useRef(null)
   const bookRef = useRef(null) // book 实例，用于 locations 百分比换算
   const [error, setError] = useState(null)
+
+  // iframe 内文档看不到父页的 CSS 变量，纸面色必须算好再注入（唯一真源仍在 global.css）
+  const applyPaper = (rendition) => {
+    const paper = paperColors()
+    rendition.themes.default({
+      // iframe 内文档就是 EPUB 的滚动容器（epubjs 给它设 overflow: hidden 后靠 programmatic scroll 翻页），
+      // 禁掉它自己的回弹与向父页面的滚动链。注：epubjs 把这里的键直接拼进 CSS 文本，必须 kebab-case
+      html: {
+        'overscroll-behavior': 'none',
+      },
+      body: {
+        background: paper.bg,
+        color: paper.fg,
+      },
+    })
+  }
 
   useEffect(() => {
     let alive = true
@@ -53,13 +68,7 @@ export default function EpubRenderer({ ref, book, progress, fontSize, onProgress
           spread: 'none', // 单页视图，移动端友好
         })
         renditionRef.current = rendition
-        const isDark = resolveTheme(getSettings().theme) === 'dark'
-        rendition.themes.default({
-          body: {
-            background: isDark ? '#241d16' : '#f7eeda',
-            color: isDark ? '#eadbc0' : '#4a3826',
-          },
-        })
+        applyPaper(rendition)
 
         // 恢复进度（CFI），无进度则从开头
         if (progress?.cfi) {
@@ -74,7 +83,10 @@ export default function EpubRenderer({ ref, book, progress, fontSize, onProgress
           const start = location.start
           onProgress({
             cfi: start.cfi,
-            pageIndex: start.displayed?.page ?? 0,
+            // epubjs 的 displayed.page 是 1 起算（见其 locations 拼装：`page: start.pages[0] || 1`），
+            // 而 TXT/MOBI/PDF 上报的 pageIndex 都是 0 起算，Reader 统一 +1 显示。
+            // 这里减 1 归一，否则 EPUB 页码会比实际多一页（显示成 “2 / 1”）。
+            pageIndex: (start.displayed?.page ?? 1) - 1,
             totalPages: start.displayed?.total ?? 0,
             percentage: start.percentage ?? 0,
           })
@@ -120,6 +132,12 @@ export default function EpubRenderer({ ref, book, progress, fontSize, onProgress
       }
     }
   }, [book.id, book.blob]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 主题切换（含「跟随系统」时系统切暗色）后重设纸面色。
+  // 原实现只在挂载时读一次主题，切主题后 EPUB 阅读页底色不变 —— 顺手修掉。
+  useEffect(() => {
+    if (renditionRef.current) applyPaper(renditionRef.current)
+  }, [theme])
 
   // 字号变化即时应用
   useEffect(() => {

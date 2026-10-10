@@ -3,7 +3,7 @@
 // - 划词：textLayer 在主文档 DOM 中，走 useSelection 的 document 通道
 
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { pdfjsLib, loadPdf } from '../../lib/pdf'
+import { pdfjsLib, openPdf } from '../../lib/pdf'
 
 const PAGE_MARGIN = 32 // 页面左右留白
 
@@ -13,25 +13,28 @@ export default function PdfRenderer({ ref, book, progress, onProgress }) {
   const [error, setError] = useState(null)
   const wrapRef = useRef(null)
   const pdfRef = useRef(null)
+  const destroyRef = useRef(null) // openPdf 返回的销毁句柄（v6 必须走 loadingTask）
 
   // 1. 加载 PDF 文档
   useEffect(() => {
     let alive = true
     book.blob
       .arrayBuffer()
-      .then((data) => loadPdf(data))
-      .then((p) => {
+      .then((data) => openPdf(data))
+      .then((handle) => {
         if (!alive) {
-          p.destroy()
+          handle.destroy()
           return
         }
-        pdfRef.current = p
-        setPdf(p)
+        pdfRef.current = handle.pdf
+        destroyRef.current = handle.destroy
+        setPdf(handle.pdf)
       })
       .catch((e) => alive && setError(e.message))
     return () => {
       alive = false
-      pdfRef.current?.destroy()
+      destroyRef.current?.()
+      destroyRef.current = null
       pdfRef.current = null
     }
   }, [book.id, book.blob])

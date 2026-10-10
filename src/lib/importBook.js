@@ -33,12 +33,18 @@ async function extractMeta(format, file, blob) {
   switch (format) {
     case FORMATS.EPUB: {
       const book = ePub(await blob.arrayBuffer())
-      const m = book.metadata
+      // metadata / cover 都是异步解析的：ePub() 只是构造，ready 之前 packaging 还没建好。
+      // 直接用 book.metadata 拿到的是 undefined（Book 上根本没有这个属性）。
+      await book.ready
+      const m = book.packaging?.metadata || {}
       let coverBlob = null
       try {
         const coverUrl = await book.cover
         if (coverUrl) coverBlob = await (await fetch(coverUrl)).blob()
       } catch { /* 无封面忽略 */ }
+      // opened 比 ready 更晚 resolve：epubjs 在 store() 里挂了 opened.then(() => this.resources...)
+      // 的回调，destroy() 会把 resources 置空；不等 opened 就销毁，那个回调会抛未捕获的 rejection。
+      await book.opened
       book.destroy()
       return { title: m.title || fallbackName, author: (m.creator || '').trim(), coverBlob }
     }

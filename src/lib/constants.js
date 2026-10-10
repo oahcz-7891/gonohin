@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = {
   apiKey: '',
   baseURL: 'https://api.deepseek.com',
   model: 'deepseek-chat',
-  theme: 'system', // system | light | dark
+  theme: 'dark', // dark | light | system（深色是主调色板，见 styles/global.css）
   // 思考强度档位（auto=| off=关 | low | medium | high | max），按 baseURL 识别供应商映射
   thinkingNormal: 'auto', // 普通翻译
   thinkingDeep: 'auto', // 深度翻译

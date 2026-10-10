@@ -1,11 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 5 7" shape-rendering="crispEdges">
-  <!-- 像素风格字母 G（5×7），黑色 -->
-  <g fill="#000000">
-    <rect x="1" y="0" width="3" height="1" />
-    <rect x="0" y="1" width="1" height="5" />
-    <rect x="4" y="1" width="1" height="1" />
-    <rect x="2" y="3" width="2" height="2" />
-    <rect x="4" y="4" width="1" height="2" />
-    <rect x="1" y="6" width="3" height="1" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">Gonohin</title>
+  <desc id="desc">A modular G formed from coral, blue, and yellow blocks.</desc>
+  <rect width="800" height="800" rx="176" fill="#101217"/>
+  <path fill="#F09082" d="M165.29 165.29H634.72V282.65H282.65V400H165.29Z"/>
+  <path fill="#4D9ABF" d="M165.29 282.65H282.65V517.36H517.36V634.72H165.29Z"/>
+  <path fill="#F1BE58" d="M517.36 282.65H634.72V517.36H400V400H517.36Z"/>
 </svg>

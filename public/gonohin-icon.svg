@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">Gonohin app icon</title>
+  <desc id="desc">A modular G formed from coral, blue, and yellow blocks on a dark background.</desc>
+  <rect width="800" height="800" fill="#101217"/>
+  <path fill="#F09082" d="M165.29 165.29H634.72V282.65H282.65V400H165.29Z"/>
+  <path fill="#4D9ABF" d="M165.29 282.65H282.65V517.36H517.36V634.72H165.29Z"/>
+  <path fill="#F1BE58" d="M517.36 282.65H634.72V517.36H400V400H517.36Z"/>
+</svg>

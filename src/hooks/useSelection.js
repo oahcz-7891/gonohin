@@ -6,6 +6,7 @@
 
 import { useEffect, useRef } from 'react'
 import { CTX_MAX, CTX_RADIUS } from '../lib/constants'
+import { getFlags } from '../lib/uitest'
 
 // 从选区向上找最近的块级元素（段落），取整段文本作为翻译上下文
 function extractContext(range) {
@@ -33,6 +34,8 @@ function extractContext(range) {
 export function useSelection(onSelect) {
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  // 已绑定的所有文档（主文档 + MOBI 的 iframe 文档），清选区时要逐个清
+  const docsRef = useRef([])
 
   useEffect(() => {
     // 在某 document 上监听划词；offsetX/Y 是该文档相对主视图的偏移
@@ -79,7 +82,13 @@ export function useSelection(onSelect) {
         clearTimeout(timer)
         timer = setTimeout(() => read(false), 250)
       }
-      const onTouchStart = () => startPoll(2500)
+      // 策略：热区上的触摸不启动轮询。诊断开关打开时生效。
+      // 理由：翻页这一触也会启动 2.5s 轮询，只要文档里残着一个旧选区，
+      // 它就会被重新上报 → 重弹操作条 + 全屏遮罩 → 下一次点击就被遮罩吃了。
+      const onTouchStart = (e) => {
+        if (getFlags().skipPollOnNav && e.target?.closest?.('.page-nav')) return
+        startPoll(2500)
+      }
 
       doc.addEventListener('mouseup', handler)
       doc.addEventListener('touchend', handler, { passive: true })
@@ -99,6 +108,11 @@ export function useSelection(onSelect) {
     const detachFrames = []
     const boundDocs = new WeakSet()
 
+    const track = (doc) => {
+      if (!docsRef.current.includes(doc)) docsRef.current.push(doc)
+    }
+    track(document)
+
     // 轮询已挂载的 .trans-iframe（MOBI 渲染器标记的），自动绑定其内容文档。
     // 注意：iframe 翻章后内容重新加载，contentDocument 是新对象——按文档标记而非元素标记，
     // 否则新文档不会补绑（划词失效）。
@@ -107,6 +121,7 @@ export function useSelection(onSelect) {
         const doc = iframe.contentDocument
         if (!doc || boundDocs.has(doc)) return
         boundDocs.add(doc)
+        track(doc)
         const rect = iframe.getBoundingClientRect()
         detachFrames.push(attach(doc, rect.left, rect.top))
       })
@@ -116,6 +131,21 @@ export function useSelection(onSelect) {
       detachMain()
       detachFrames.forEach((d) => d())
       clearInterval(pollFrames)
+      docsRef.current = []
     }
   }, [])
+
+  // 把所有已绑定文档里的选区清掉。只清状态没用：DOM 里的选区还在，
+  // 轮询一读就又上报一次，操作条/遮罩会重新弹出来（见 lib/uitest.js 策略⑤）
+  return {
+    clearSelections: () => {
+      for (const doc of docsRef.current) {
+        try {
+          doc.getSelection()?.removeAllRanges()
+        } catch {
+          /* 跨域 iframe 会抛，忽略 */
+        }
+      }
+    },
+  }
 }

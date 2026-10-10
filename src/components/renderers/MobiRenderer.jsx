@@ -4,6 +4,10 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { initMobiFixed } from '../../lib/mobi'
 import { tokenizeHtml } from '../../lib/tokenize'
+import { paperColors, hexToRgba } from '../../lib/theme'
+import { getFlags } from '../../lib/uitest'
+// 诊断策略③：瞬时跳页。平滑动画/滚动惯性在 iOS 上可能吞掉手势，用瞬时跳页验证（lib/uitest.js）
+const scrollBehavior = () => (getFlags().instantScroll ? 'auto' : 'smooth')
 
 const READING_FONT =
   "'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', 'Songti SC', serif"
@@ -384,7 +388,7 @@ const SELECT_SCRIPT = `
 })()
 </script>`
 
-export default function MobiRenderer({ ref, book, progress, fontSize, selectMode, theme, onProgress, onSelection }) {
+export default function MobiRenderer({ ref, book, progress, fontSize, selectMode, theme, onProgress, onSelection, onNavZone }) {
   const [mobi, setMobi] = useState(null)
   const [spine, setSpine] = useState([])
   const [error, setError] = useState(null)
@@ -402,6 +406,9 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
   const [ready, setReady] = useState(false)
 
   const pageIndexRef = useRef(progress?.pageIndex ?? 0)
+  // 程序化翻页的目标页。理由同 TxtRenderer：平滑滚动途中反推的页码滞后，
+  // 连点会“白点”，而按中间值取整的吸附会把页面拉回出发页。
+  const navTargetRef = useRef(null)
   const didRestoreRef = useRef(false)
   const needsRestoreRef = useRef(true)
   const initialPageRef = useRef(progress?.pageIndex ?? null)
@@ -498,44 +505,53 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
     const el = containerRef.current
     if (!el) return
     const update = () => {
-      // 左右留白跟随 CSS（--page-zone），读取实际 padding 保证列宽与热区对齐
+      // 左右留白：容器的 padding（--page-zone）读不到时用 28px 兑底（当前 .renderer-container
+      // 没有 padding，所以实际就是 28px）。这个值既是 iframe 内列 padding，也是正文文字
+      // 距屏边的内缩，因此报给 Reader 当翻页热区宽度——热区刚好停在文字边缘。
       const pad = parseFloat(getComputedStyle(el).paddingLeft) || 28
       setPadX(pad)
+      onNavZone?.(pad)
       setColWidth(Math.max(100, Math.floor(el.clientWidth - pad * 2)))
     }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+    return () => {
+      ro.disconnect()
+      onNavZone?.(null) // 卸载后热区回到默认 --page-zone
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- onNavZone 是稳定的 setState 引用
 
   // 4. 组装 srcdoc
   const srcDoc = useMemo(() => {
     if (!combined || !colWidth) return null
-    const dark = theme === 'dark'
-    const paperBg = dark ? '#241d16' : '#f7eeda'
-    const paperFg = dark ? '#eadbc0' : '#4a3826'
+    // 纸面色从 CSS 变量取（iframe 里看不到父页变量），别在这里写死颜色
+    const paper = paperColors()
+    const tokHover = hexToRgba(paper.accent, 0.14)
+    const selBox = hexToRgba(paper.accent, 0.28)
     const cssLinks = combined.css.map((href) => `<link rel="stylesheet" href="${href}">`).join('\n')
     const bodyHtml = selectMode && tokHtml ? tokHtml : combined.html
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${cssLinks}
 <style>
-  html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}
-  body{background:${paperBg}}
-  .mobi-scroll{position:absolute;inset:0;overflow-x:auto;overflow-y:hidden;
+  html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden;overscroll-behavior:none}
+  body{background:${paper.bg}}
+  .mobi-scroll{position:absolute;inset:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior:contain;
     direction:ltr;writing-mode:horizontal-tb;scrollbar-width:none}
   .mobi-scroll::-webkit-scrollbar{display:none}
   .mobi-cols{height:100%;box-sizing:border-box;padding:36px ${padX}px;
     column-width:${colWidth}px;column-gap:${GAP}px;column-fill:auto;
     direction:ltr;writing-mode:horizontal-tb;
     font-family:${READING_FONT};font-size:${fontSize}px;line-height:1.9;
-    color:${paperFg};word-break:break-word}
+    color:${paper.fg};word-break:break-word}
   .mobi-cols img{max-width:100%;height:auto}
   .tok{white-space:pre-wrap}
-  .tok:hover{background:rgba(154,107,63,.12);border-radius:3px}
+  .tok:hover{background:${tokHover};border-radius:3px}
   .sel-layer{position:absolute;inset:0;pointer-events:none;z-index:3}
-  .sel-box{position:absolute;background:rgba(154,107,63,.25);border-radius:2px}
+  .sel-box{position:absolute;background:${selBox};border-radius:2px}
 </style></head><body><div class="mobi-scroll"><div class="mobi-cols">${bodyHtml}</div></div>${selectMode ? SELECT_SCRIPT : ''}</body></html>`
-  }, [combined, colWidth, padX, fontSize, theme, selectMode, tokHtml])
+    // theme 不在回调里出现，但必须留着：纸面色是从 CSS 变量读的，
+    // 主题一变变量就变，theme 是通知「该重算颜色」的唯一信号
+  }, [combined, colWidth, padX, fontSize, theme, selectMode, tokHtml]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // srcDoc 重建（改字号/窗口大小）后，iframe 重新加载时要回到当前页
   useLayoutEffect(() => {
@@ -608,6 +624,7 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
       }
       page = clamp(page, 0, totalPages - 1)
       scroller.scrollLeft = page * step
+      navTargetRef.current = null // 重算后旧的翻页目标作废
       report(page, totalPages)
       // 页码恢复完成后再显示，用户首帧看到的就是保存的位置
       setReady(true)
@@ -628,8 +645,15 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
     }
     const snapToPage = () => {
       if (frameRef.current?.contentDocument !== doc) return
-      const target = Math.round(scroller.scrollLeft / step) * step
-      if (Math.abs(target - scroller.scrollLeft) > 1) scroller.scrollTo({ left: target, behavior: 'smooth' })
+      const totalPages = Math.max(1, Math.round(scroller.scrollWidth / step))
+      const intended = navTargetRef.current
+      const page =
+        intended != null
+          ? clamp(intended, 0, totalPages - 1)
+          : clamp(Math.round(scroller.scrollLeft / step), 0, totalPages - 1)
+      const target = page * step
+      if (Math.abs(target - scroller.scrollLeft) > 1) scroller.scrollTo({ left: target, behavior: scrollBehavior() })
+      else if (intended != null) navTargetRef.current = null
     }
 
     requestAnimationFrame(measure)
@@ -652,8 +676,11 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
         if (!scroller) return
         const step = colWidth + GAP
         const totalPages = pageInfo.totalPages || 1
-        const target = clamp(pageIndexRef.current + delta, 0, totalPages - 1)
-        scroller.scrollTo({ left: target * step, behavior: 'smooth' })
+        // 以「上一个目标页」为基准：连点时不会因为动画未完成而原地踏步
+        const base = navTargetRef.current ?? pageIndexRef.current
+        const target = clamp(base + delta, 0, totalPages - 1)
+        navTargetRef.current = target
+        scroller.scrollTo({ left: target * step, behavior: scrollBehavior() })
       }
       return {
         next: () => move(1),
@@ -664,6 +691,7 @@ export default function MobiRenderer({ ref, book, progress, fontSize, selectMode
           if (!scroller) return
           const step = colWidth + GAP
           const totalPages = Math.max(1, Math.round(scroller.scrollWidth / step))
+          navTargetRef.current = null // 瞬时跳转，不走平滑动画
           // 先算目标页再对齐到列宽步长，保证落在完整页
           const target = clamp(Math.round(p * (totalPages - 1)), 0, totalPages - 1)
           scroller.scrollTo({ left: target * step, behavior: 'auto' })
