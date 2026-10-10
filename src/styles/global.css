@@ -47,13 +47,17 @@
 
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 
-  /* 字族：展示字宋体（简体中文衬线），界面字黑体（简体中文字体）。
-     原来是日文字体优先（Hiragino / Noto Sans·Serif JP）：简体字（如「关」）会落到
-     日文字形、看着像一个偏旁。这里改成简体中文字体优先。
+  /* 字族：
+     - --gothic  界面字（黑体）：简体中文优先。原先日文优先时简体字（如「关」）
+       会落到日文字形、看着像一个偏旁，界面保持简体中文字体。
+     - --mincho  界面展示字（衬线）：简体中文衬线，用于栏目标题 / 空状态 / 弹窗标题等界面文案。
+     - --book-font 书籍字（衬线）：书籍正文与书名用日文衬线（书籍内容与标题要日文字体）；
+       末尾保留宋体兜底，简体独有的字（日文字体没有的）还能正常显示。
      变量名 --mincho / --gothic 沿用旧名，只换字体值，避免大范围改名。 */
   --mincho: 'Songti SC', 'Noto Serif SC', 'SimSun', 'Source Han Serif SC', serif;
   --gothic: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
-  --reading-font: var(--mincho);
+  --book-font: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', 'Songti SC', serif;
+  --reading-font: var(--book-font);
 
   /* 翻页热区宽度 = 文字左右留白（热区只落在留白上，不盖住正文） */
   --page-zone: clamp(52px, 15%, 96px);
@@ -503,7 +507,7 @@ textarea {
   min-width: 0;
 }
 .continue-card-body b {
-  font-family: var(--mincho);
+  font-family: var(--book-font);
   font-size: 21px;
   font-weight: 700;
   line-height: 1.3;
@@ -597,7 +601,7 @@ textarea {
    2. 不写 nowrap，高度不够时会折成第二列（vertical-rl 往左排），那列会叠到书脊上。 */
 .cv-vt {
   writing-mode: vertical-rl;
-  font-family: var(--mincho);
+  font-family: var(--book-font);
   font-size: 13px;
   line-height: 1.08;
   font-weight: 700;
@@ -652,6 +656,7 @@ textarea {
 }
 .book-title {
   margin-top: 9px;
+  font-family: var(--book-font);
   font-size: 14px;
   font-weight: 700;
   color: var(--fg-strong);
@@ -720,6 +725,7 @@ textarea {
   overflow: visible;
 }
 .reader-title {
+  font-family: var(--book-font);
   font-size: 17px;
   font-weight: 700;
   color: var(--bar-fg);
