@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>翻译弹窗 · 帯 改版预览</title>
+<style>
+/* ============================================================
+   本页只做「翻译弹窗」静态预览，样式与 new-ui 分支的
+   src/styles/global.css 保持一致（token + .trans-* + .btn）。
+   改动 global.css 后记得同步这里。
+   ============================================================ */
+
+/* ---- 帯 token（深色，默认）---- */
+:root {
+  color-scheme: dark;
+  --bg: #131313;
+  --bg-elev: #1c1c1c;
+  --bg-3: #262626;
+  --paper: #161616;
+  --fg: #ededed;
+  --fg-strong: #f7f7f7;
+  --fg-muted: #9a9a9a;
+  --border: #3a3a3a;
+  --primary: #2f5fa8;
+  --primary-hover: #3d74c4;
+  --on-primary: #ffffff;
+  --primary-bright: #6b9bd8;
+  --danger: #ff6b5a;
+  --ok: #5fd39a;
+  --r: 10px;
+  --r-lg: 14px;
+  --r-in: 5px;
+  --w-frame: 2px;
+  --w-rule: 3px;
+  --w-bar: 6px;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --mincho: 'Songti SC', 'Noto Serif SC', 'SimSun', 'Source Han Serif SC', serif;
+  --gothic: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
+}
+/* ---- 亮色 ---- */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f2f1ee;
+  --bg-elev: #ffffff;
+  --bg-3: #e6e4df;
+  --paper: #fbfaf8;
+  --fg: #1a1a1a;
+  --fg-strong: #000000;
+  --fg-muted: #6b6b6b;
+  --border: #c9c6c0;
+  --primary: #1f4a8c;
+  --primary-hover: #2b5b8c;
+  --on-primary: #ffffff;
+  --primary-bright: #1f4a8c;
+  --danger: #c0392b;
+  --ok: #1f7a4d;
+  --shadow: 0 4px 16px rgba(27, 26, 23, 0.12);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--gothic);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+/* 表单控件不继承字体，统一 inherit（与 global.css 一致） */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* ---- 通用按钮（global.css 原样）---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 22px;
+  border: none;
+  border-radius: var(--r);
+  background: var(--bg-3);
+  color: var(--fg);
+  font-family: var(--gothic);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+.btn:hover:not(:disabled) { color: var(--primary-bright); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); color: var(--on-primary); }
+.btn-ghost { background: transparent; border: var(--w-frame) solid var(--border); }
+
+/* ---- 翻译弹窗（global.css 原样）---- */
+.trans-popup {
+  z-index: 200;
+  max-width: 420px;
+  background: var(--bg-elev);
+  border: var(--w-frame) solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: glass-in 0.4s cubic-bezier(0.22, 1.3, 0.36, 1);
+}
+.trans-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-bottom: 8px;
+  border-bottom: var(--w-frame) solid var(--border);
+}
+.trans-title {
+  font-family: var(--mincho);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg-strong);
+  letter-spacing: 0.06em;
+}
+.trans-mode {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-3);
+  border: var(--w-frame) solid var(--border);
+  border-radius: var(--r);
+}
+.trans-mode button {
+  padding: 5px 14px;
+  border: none;
+  border-radius: calc(var(--r) - var(--w-frame));
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: var(--gothic);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+.trans-mode button:hover:not(.on) { color: var(--primary-bright); }
+.trans-mode button.on { background: var(--primary); color: var(--on-primary); }
+.trans-source {
+  font-size: 13px;
+  color: var(--fg-muted);
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.65;
+  padding-bottom: 10px;
+  border-bottom: var(--w-frame) solid var(--border);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.trans-result {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--fg-strong);
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.trans-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.trans-actions > div { display: flex; gap: 8px; }
+.trans-actions .btn { min-height: 42px; padding: 0 16px; }
+.trans-error {
+  font-size: 13px;
+  color: var(--danger);
+  line-height: 1.6;
+  padding: 10px 12px;
+  border: var(--w-frame) solid rgba(179, 73, 58, 0.28);
+  border-radius: var(--r);
+  background: rgba(179, 73, 58, 0.12);
+}
+.trans-loading { animation: blink 0.8s infinite; }
+.trans-timing { color: var(--fg-muted); font-size: 11px; line-height: 1.4; flex-shrink: 0; }
+@keyframes blink { 50% { opacity: 0.2; } }
+@keyframes glass-in {
+  0% { opacity: 0; transform: scale(0.9) translateY(10px); }
+  55% { opacity: 1; transform: scale(1.03) translateY(-2px); }
+  78% { transform: scale(0.995) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ---- 划词操作条（global.css 原样；预览里放回文档流）---- */
+.sel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  border: var(--w-frame) solid var(--border);
+  box-shadow: var(--shadow);
+  animation: glass-in 0.4s cubic-bezier(0.22, 1.3, 0.36, 1);
+}
+.sel-actions button {
+  border: none;
+  border-radius: var(--r-in);
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex: none;
+  background: var(--primary);
+  color: var(--on-primary);
+  cursor: pointer;
+}
+.sel-actions button:active { opacity: 0.85; }
+.sel-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+.sel-actions .sel-actions-close {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: var(--r-in);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 17px;
+}
+
+/* ============================================================
+   以下是「预览页」自身的排版，不属于产品样式
+   ============================================================ */
+.wrap { max-width: 1040px; margin: 0 auto; padding: 32px 24px 80px; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+.page-title { font-family: var(--mincho); font-size: 26px; font-weight: 700; color: var(--fg-strong); margin: 0; letter-spacing: 0.06em; }
+.page-sub { color: var(--fg-muted); font-size: 13px; margin: 6px 0 0; }
+.tools { display: flex; gap: 10px; }
+.grid { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+.cell { }
+.cell-cap { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: var(--fg-muted); margin: 0 0 10px 2px; }
+/* 预览里把弹窗从 fixed 拉回文档流，给个固定宽度模拟实际观感 */
+.cell .trans-popup { position: relative; width: 380px; }
+.note { margin-top: 40px; padding: 14px 16px; border: var(--w-frame) solid var(--border); border-radius: var(--r); color: var(--fg-muted); font-size: 13px; line-height: 1.8; }
+.note b { color: var(--fg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">翻译弹窗 · 帯 改版预览</h1>
+      <p class="page-sub">静态样板 · 深色 / 浅色 · 七种状态</p>
+    </div>
+    <div class="tools">
+      <button class="btn" id="themeBtn">切换深色 / 浅色</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- 1. 加载中（深度） -->
+    <div class="cell">
+      <p class="cell-cap">1 · 流式加载中（深度）</p>
+      <div class="trans-popup">
+        <div class="trans-head">
+          <span class="trans-title">翻译</span>
+          <div class="trans-mode" role="group" aria-label="翻译模式">
+            <button type="button">普通</button>
+            <button type="button" class="on">深度</button>
+          </div>
+        </div>
+        <div class="trans-source" title="原文">The old library smelled of dust and paper. She ran her fingers along the spines, looking for a title her grandfather had once mentioned.</div>
+        <div class="trans-result" aria-live="polite" aria-busy="true">旧图书馆里弥漫着灰尘与纸张的气味，她的手指<span class="trans-loading">▍</span></div>
+        <div class="trans-timing">首字 820ms…</div>
+        <div class="trans-actions">
+          <div>
+            <button class="btn btn-primary" disabled>重新翻译</button>
+            <button class="btn" disabled>复制</button>
+          </div>
+          <button class="btn btn-ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 完成（普通） -->
+    <div class="cell">
+      <p class="cell-cap">2 · 翻译完成（普通）</p>
+      <div class="trans-popup">
+        <div class="trans-head">
+          <span class="trans-title">翻译</span>
+          <div class="trans-mode" role="group" aria-label="翻译模式">
+            <button type="button" class="on">普通</button>
+            <button type="button">深度</button>
+          </div>
+        </div>
+        <div class="trans-source" title="原文">The old library smelled of dust and paper. She ran her fingers along the spines, looking for a title her grandfather had once mentioned.</div>
+        <div class="trans-result" aria-live="polite" aria-busy="false">旧图书馆里弥漫着灰尘与纸张的气味。她的手指沿着书脊一册册滑过，寻找着祖父曾提起过的那个书名。</div>
+        <div class="trans-timing">首字 820ms · 总 2140ms</div>
+        <div class="trans-actions">
+          <div>
+            <button class="btn btn-primary">重新翻译</button>
+            <button class="btn">复制</button>
+          </div>
+          <button class="btn btn-ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 错误 -->
+    <div class="cell">
+      <p class="cell-cap">3 · 出错</p>
+      <div class="trans-popup">
+        <div class="trans-head">
+          <span class="trans-title">翻译</span>
+          <div class="trans-mode" role="group" aria-label="翻译模式">
+            <button type="button" class="on">普通</button>
+            <button type="button">深度</button>
+          </div>
+        </div>
+        <div class="trans-source" title="原文">A short passage used to show the error state.</div>
+        <div class="trans-error" role="alert">请求失败：429 Too Many Requests（稍后重试）</div>
+        <div class="trans-actions">
+          <div>
+            <button class="btn btn-primary">重新翻译</button>
+            <button class="btn" disabled>复制</button>
+          </div>
+          <button class="btn btn-ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 长原文截断 -->
+    <div class="cell">
+      <p class="cell-cap">4 · 长原文（截取前 2000 字）</p>
+      <div class="trans-popup">
+        <div class="trans-head">
+          <span class="trans-title">翻译</span>
+          <div class="trans-mode" role="group" aria-label="翻译模式">
+            <button type="button" class="on">普通</button>
+            <button type="button">深度</button>
+          </div>
+        </div>
+        <div class="trans-source" title="原文">It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief, it was the epoch of incredulity, it was the season of Light, it was the season of Darkness…<span style="color: var(--fg-muted)">（已截取前 2000 字）</span></div>
+        <div class="trans-result" aria-live="polite" aria-busy="false">这是最好的时代，这是最坏的时代；这是智慧的年代，这是愚蠢的年代；这是信仰的时期，这是怀疑的时期；这是光明的季节，这是黑暗的季节……</div>
+        <div class="trans-timing">首字 1140ms · 总 3860ms</div>
+        <div class="trans-actions">
+          <div>
+            <button class="btn btn-primary">重新翻译</button>
+            <button class="btn">复制</button>
+          </div>
+          <button class="btn btn-ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. 短文本 + 深度 -->
+    <div class="cell">
+      <p class="cell-cap">5 · 短文本（深度）</p>
+      <div class="trans-popup">
+        <div class="trans-head">
+          <span class="trans-title">翻译</span>
+          <div class="trans-mode" role="group" aria-label="翻译模式">
+            <button type="button">普通</button>
+            <button type="button" class="on">深度</button>
+          </div>
+        </div>
+        <div class="trans-source" title="原文">Ich bin ein Berliner.</div>
+        <div class="trans-result" aria-live="polite" aria-busy="false">我是一个柏林人。</div>
+        <div class="trans-timing">首字 640ms · 总 900ms</div>
+        <div class="trans-actions">
+          <div>
+            <button class="btn btn-primary">重新翻译</button>
+            <button class="btn">复制</button>
+          </div>
+          <button class="btn btn-ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+    <!-- 6. 划词操作条 -->
+    <div class="cell">
+      <p class="cell-cap">6 · 划词操作条（触屏）</p>
+      <div class="sel-actions">
+        <button type="button">复制</button>
+        <button type="button">翻译</button>
+        <button type="button">深度翻译</button>
+        <button type="button" class="sel-actions-close" aria-label="关闭">✕</button>
+      </div>
+      <p class="cell-cap" style="margin-top: 24px">7 · 已复制状态</p>
+      <div class="sel-actions">
+        <button type="button">已复制</button>
+        <button type="button">翻译</button>
+        <button type="button">深度翻译</button>
+        <button type="button" class="sel-actions-close" aria-label="关闭">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    <b>说明：</b>本页不依赖构建，双击即可在浏览器打开。样式与 <b>new-ui</b> 分支的 <b>src/styles/global.css</b>
+    中的 <b>.trans-*</b> / <b>.sel-actions</b> / <b>.btn</b> 一致，改代码后同步本页即可。<br />
+    改版要点：① 毛玻璃 → 实色面 + 2px 边（去掉 backdrop-filter，修 iOS 材质糊字）；
+    ② 头部加宋体标题「翻译」+ 2px 底线；③ 原文弱化为 --fg-muted，译文抬到 --fg-strong；
+    ④ 模式控件由胶囊改方角实块；⑤ 主按钮蓝底、按钮统一 42px；⑥ 划词操作条同步换实色 + 方角；
+    ⑦ 字族由日文字体优先改为<b>简体中文字体优先</b>（修「关」等简体字落到日文字形成偏旁的问题）。
+  </p>
+</div>
+
+<script>
+  const btn = document.getElementById('themeBtn');
+  btn.addEventListener('click', () => {
+    const el = document.documentElement;
+    el.dataset.theme = el.dataset.theme === 'light' ? 'dark' : 'light';
+  });
+</script>
+</body>
+</html>

@@ -113,6 +113,7 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
             当前态与目标态分不清。两个标签常驻、高亮当前档，语义明确。
             点当前档位不触发重译（setMode 同值 → React 不会重跑 effect） */}
         <div className="trans-head">
+          <span className="trans-title">翻译</span>
           <div className="trans-mode" role="group" aria-label="翻译模式">
             <button type="button" className={mode === 'normal' ? 'on' : ''} onClick={() => setMode('normal')}>
               普通
@@ -129,9 +130,11 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
         </div>
 
         {error ? (
-          <div className="trans-error">{error}</div>
+          <div className="trans-error" role="alert">
+            {error}
+          </div>
         ) : (
-          <div className="trans-result">
+          <div className="trans-result" aria-live="polite" aria-busy={loading}>
             {result}
             {loading && <span className="trans-loading">▍</span>}
           </div>
@@ -147,7 +150,7 @@ export default function TranslationPopup({ text, context = '', x, y, mode: initi
 
         <div className="trans-actions">
           <div>
-            <button className="btn" onClick={() => run(true)} disabled={loading}>
+            <button className="btn btn-primary" onClick={() => run(true)} disabled={loading}>
               重新翻译
             </button>
             <button className="btn" onClick={copy} disabled={!result || loading}>

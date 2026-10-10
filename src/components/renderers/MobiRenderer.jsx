@@ -9,8 +9,7 @@ import { getFlags } from '../../lib/uitest'
 // 诊断策略③：瞬时跳页。平滑动画/滚动惯性在 iOS 上可能吞掉手势，用瞬时跳页验证（lib/uitest.js）
 const scrollBehavior = () => (getFlags().instantScroll ? 'auto' : 'smooth')
 
-const READING_FONT =
-  "'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', 'Songti SC', serif"
+const READING_FONT = "'Songti SC', 'Noto Serif SC', 'SimSun', 'Source Han Serif SC', serif"
 const GAP = 40 // column-gap 固定 40px，与 step 计算一致
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v))

@@ -47,9 +47,12 @@
 
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 
-  /* 字族：展示字明朝，界面字黑体 */
-  --mincho: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', 'Songti SC', serif;
-  --gothic: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  /* 字族：展示字宋体（简体中文衬线），界面字黑体（简体中文字体）。
+     原来是日文字体优先（Hiragino / Noto Sans·Serif JP）：简体字（如「关」）会落到
+     日文字形、看着像一个偏旁。这里改成简体中文字体优先。
+     变量名 --mincho / --gothic 沿用旧名，只换字体值，避免大范围改名。 */
+  --mincho: 'Songti SC', 'Noto Serif SC', 'SimSun', 'Source Han Serif SC', serif;
+  --gothic: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
   --reading-font: var(--mincho);
 
   /* 翻页热区宽度 = 文字左右留白（热区只落在留白上，不盖住正文） */
@@ -95,10 +98,6 @@
      字号浮层的弹出位置也读它。两者都是实测值，改 chrome 内边距/按钮尺寸时要同步 */
   --chrome-h: calc(46px + var(--safe-top)); /* 顶栏：安全区 + 图标 38 + 下内边距 8 */
   --statusbar-h: 40px; /* 状态栏：8 + 滑块 22 + 8 + 2（上边线），手机端另算 */
-  /* iOS 26 液态玻璃材质（弹窗 / 操作条） */
-  --glass-bg: rgba(28, 31, 36, 0.82);
-  --glass-highlight: rgba(255, 255, 255, 0.09);
-  --glass-blur: blur(22px) saturate(1.6);
   --pdf-bg: #3c3e42; /* PDF 衬底：页面本身是白的，中灰偏暗才衬得出页缘又不刺眼 */
 }
 
@@ -123,8 +122,6 @@
   --ok: #1f7a4d;
   --shadow: 0 4px 16px rgba(27, 26, 23, 0.12);
   --tap-glow: rgba(31, 74, 140, 0.1);
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-highlight: rgba(255, 255, 255, 0.6);
   --pdf-bg: #55575a;
 }
 
@@ -164,6 +161,15 @@ body {
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+}
+
+/* 表单控件（button / input / select）默认不继承字体，会落到系统默认字形，
+   简体字（如划词条关闭钮的「关」）容易渲染成怪样子。统一让它们继承界面字体 */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 .app {
@@ -559,7 +565,7 @@ body {
   cursor: pointer;
   user-select: none;
 }
-/* 封面壳：有封面时铺图，无封面时是「灰面 + 书脊 + 竖排明朝书名」 */
+/* 封面壳：有封面时铺图，无封面时是「灰面 + 书脊 + 竖排宋体书名」 */
 .cv {
   position: relative;
   aspect-ratio: 3 / 4;
@@ -1000,67 +1006,85 @@ body {
   z-index: 200;
   max-width: 420px;
   max-height: calc(100vh - 16px);
-  /* iOS 26 液态玻璃：半透明毛玻璃 + 高光边缘 */
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  /* 帯：实色面 + 2px 边，不用毛玻璃。iOS 26 的液态玻璃材质会糊掉细笔画，
+     全项目已不再使用 backdrop-filter（见 UI_REDESIGN_TAI_CHANGELOG §6.2） */
+  background: var(--bg-elev);
   border: var(--w-frame) solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 var(--glass-highlight);
-  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  padding: 14px 16px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   animation: glass-in 0.4s cubic-bezier(0.22, 1.3, 0.36, 1);
 }
+/* 头部：宋体标题 + 右侧模式分段，2px 底线把标题区与正文分开 */
 .trans-head {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 10px;
   flex-shrink: 0;
+  padding-bottom: 8px;
+  border-bottom: var(--w-frame) solid var(--border);
 }
-/* 普通 / 深度 分段控件（当前档位高亮，标签常驻） */
+.trans-title {
+  font-family: var(--mincho);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg-strong);
+  letter-spacing: 0.06em;
+}
+/* 普通 / 深度 分段控件（当前档位高亮，标签常驻）。方角实块，跟 帯 的控件一致 */
 .trans-mode {
   display: inline-flex;
   gap: 2px;
   padding: 2px;
+  background: var(--bg-3);
   border: var(--w-frame) solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--r);
 }
 .trans-mode button {
-  padding: 4px 12px;
+  padding: 5px 14px;
   border: none;
-  border-radius: 999px;
+  /* 同心圆角：内圆角 = 外圆角 − 内边距 */
+  border-radius: calc(var(--r) - var(--w-frame));
   background: transparent;
   color: var(--fg-muted);
+  font-family: var(--gothic);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, color 0.15s;
+}
+.trans-mode button:hover:not(.on) {
+  color: var(--primary-bright);
 }
 .trans-mode button.on {
   background: var(--primary);
   color: var(--on-primary);
-  font-weight: 600;
 }
+/* 原文：弱化（小一号 + --fg-muted），让译文当主角 */
 .trans-source {
   font-size: 13px;
-  color: var(--fg);
+  color: var(--fg-muted);
   flex-shrink: 1;
   min-height: 0;
   max-height: 120px;
   overflow-y: auto;
-  line-height: 1.6;
-  border-bottom: var(--w-frame) dashed var(--border);
-  padding-bottom: 8px;
+  line-height: 1.65;
+  padding-bottom: 10px;
+  border-bottom: var(--w-frame) solid var(--border);
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* 译文：抬到 --fg-strong，与弱化的原文拉开层级 */
 .trans-result {
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.75;
+  color: var(--fg-strong);
   flex-shrink: 1;
   min-height: 0;
   max-height: 240px;
@@ -1074,20 +1098,25 @@ body {
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
+  padding-top: 2px;
 }
 .trans-actions > div {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 .trans-actions .btn {
-  min-height: 38px;
+  min-height: 42px;
   padding: 0 16px;
-  font-size: 15px;
 }
+/* 报错块复用通知条的配色 */
 .trans-error {
   font-size: 13px;
   color: var(--danger);
   line-height: 1.6;
+  padding: 10px 12px;
+  border: var(--w-frame) solid rgba(179, 73, 58, 0.28);
+  border-radius: var(--r);
+  background: rgba(179, 73, 58, 0.12);
 }
 .trans-loading {
   animation: blink 0.8s infinite;
@@ -1116,19 +1145,16 @@ body {
   align-items: center;
   gap: 6px;
   padding: 6px;
-  border-radius: 999px;
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  border-radius: var(--r);
+  /* 帯：实色面 + 2px 边，去掉毛玻璃（同翻译弹窗） */
+  background: var(--bg-elev);
   border: var(--w-frame) solid var(--border);
-  box-shadow:
-    0 6px 20px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 var(--glass-highlight);
+  box-shadow: var(--shadow);
   animation: glass-in 0.4s cubic-bezier(0.22, 1.3, 0.36, 1);
 }
 .sel-actions button {
   border: none;
-  border-radius: 999px;
+  border-radius: var(--r-in);
   min-height: 40px;
   padding: 0 14px;
   font-size: 13px;
@@ -1153,7 +1179,7 @@ body {
   height: 34px;
   min-height: 34px;
   padding: 0;
-  border-radius: 50%;
+  border-radius: var(--r-in);
   background: transparent;
   color: var(--fg-muted);
   font-size: 17px;
